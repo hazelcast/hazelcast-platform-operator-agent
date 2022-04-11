@@ -33,8 +33,13 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func health(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func main() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/upload", upload).Methods("POST")
+	router.HandleFunc("/health", health)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
