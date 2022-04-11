@@ -1,4 +1,4 @@
-FROM golang:1.16 AS builder
+FROM golang:1.17 AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY main.go main.go
 COPY backup/ backup/
 COPY util/ util/
 
-RUN go build -o /operator-agent
+RUN GOOS=linux GOARCH=amd64 go build -o /operator-agent
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.5
 
