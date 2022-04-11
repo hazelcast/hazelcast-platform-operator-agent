@@ -1,20 +1,22 @@
 package main
 
 import (
-	"backup-agent/backup"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
+
+	"backup-agent/backup"
 )
 
 type uploadReq struct {
-	BucketURL string `json:"bucket_url"`
+	BucketURL        string `json:"bucket_url"`
 	BackupFolderPath string `json:"backup_folder_path"`
-	HazelcastCRName string `json:"hz_cr_name"`
+	HazelcastCRName  string `json:"hz_cr_name"`
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {

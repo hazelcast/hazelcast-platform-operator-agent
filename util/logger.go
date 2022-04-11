@@ -2,12 +2,14 @@ package util
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 	"os"
 	"sync"
+	
+	"github.com/sirupsen/logrus"
 )
 
 const DefaultLogLevel = logrus.InfoLevel
+
 var once = &sync.Once{}
 var logger = logrus.New()
 

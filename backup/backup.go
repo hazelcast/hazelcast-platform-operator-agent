@@ -1,22 +1,24 @@
 package backup
 
 import (
-	"backup-agent/util"
 	"context"
 	"fmt"
-	"gocloud.dev/blob"
-	_ "gocloud.dev/blob/s3blob"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/s3blob"
+
+	"backup-agent/util"
 )
 
-func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string, hazelcastCRName string) (error) {
+func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string, hazelcastCRName string) error {
 	backupFolderFileList, backupFolderErr := ioutil.ReadDir(backupFolderPath)
 	logger := util.GetLogger(ctx)
 	if backupFolderErr != nil {
-		logger.Errorf("Error occurred while read backup folder.", backupFolderErr)
+		logger.Errorf("Error occurred while read backup folder: %v", backupFolderErr)
 		return nil
 	}
 
@@ -30,11 +32,11 @@ func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string
 		backupItem := fmt.Sprintf("%s/%s", backupFolderPath, bf.Name())
 		UUIDFolderList, UUIDFolderErr := ioutil.ReadDir(backupItem)
 		if UUIDFolderErr != nil {
-			logger.Errorf("Error occurred while read backup folder for timestamp.", UUIDFolderErr)
+			logger.Errorf("Error occurred while read backup folder for timestamp: %v", UUIDFolderErr)
 			return nil
 		}
 		for _, uf := range UUIDFolderList {
-			zipFilePath := fmt.Sprintf("/%s/%s.zip", backupFolderPath,uf.Name())
+			zipFilePath := fmt.Sprintf("/%s/%s.zip", backupFolderPath, uf.Name())
 			UUIDBackupFolderPath := path.Join(backupFolderPath, bf.Name(), uf.Name())
 			backupZipErr := util.ZipFolder(UUIDBackupFolderPath, zipFilePath)
 			if backupZipErr != nil {
