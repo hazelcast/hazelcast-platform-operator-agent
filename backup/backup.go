@@ -11,7 +11,7 @@ import (
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/s3blob"
 
-	"backup-agent/util"
+	"github.com/hazelcast/platform-operator-agent/util"
 )
 
 func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string, hazelcastCRName string) error {
