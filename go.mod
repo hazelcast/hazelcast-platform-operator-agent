@@ -3,6 +3,7 @@ module github.com/hazelcast/platform-operator-agent
 go 1.17
 
 require (
+	github.com/google/subcommands v1.0.1
 	github.com/gorilla/mux v1.8.0
 	github.com/sirupsen/logrus v1.8.1
 )
