@@ -10,7 +10,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"backup-agent/backup"
+	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
 type uploadReq struct {

@@ -1,4 +1,4 @@
-module backup-agent
+module github.com/hazelcast/platform-operator-agent
 
 go 1.17
 
