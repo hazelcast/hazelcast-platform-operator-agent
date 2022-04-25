@@ -6,7 +6,7 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY main.go main.go
+COPY main.go backup.go restore.go ./
 COPY backup/ backup/
 COPY util/ util/
 
