@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,6 +20,8 @@ import (
 
 	_ "gocloud.dev/blob/s3blob"
 )
+
+const restoreLock = ".restore_lock"
 
 // StatefullSet hostname is always DSN RFC 1123 and number
 var hostnameRe = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
@@ -58,9 +61,25 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
+	lock := filepath.Join(r.Destination, restoreLock)
+
+	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+		// If restore lock exists exit silently
+		return subcommands.ExitSuccess
+	}
+
+	// cleanup destination directory
+	if err := removeAll(r.Destination); err != nil {
+		return subcommands.ExitFailure
+	}
+
 	// run download process
 	if err := download(ctx, r.Bucket, r.Destination, id); err != nil {
 		log.Println(err)
+		return subcommands.ExitFailure
+	}
+
+	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
 		return subcommands.ExitFailure
 	}
 
@@ -136,4 +155,15 @@ func parseID(hostname string) (int, error) {
 		return 0, errParseID
 	}
 	return strconv.Atoi(parts[0][2])
+}
+
+func removeAll(path string) error {
+	names, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	for _, e := range names {
+		os.RemoveAll(filepath.Join(path, e.Name()))
+	}
+	return nil
 }
