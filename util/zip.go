@@ -3,9 +3,10 @@ package util
 import (
 	"archive/zip"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
-	"path"
+	"path/filepath"
+	"strings"
 )
 
 func ZipFolder(sourceFolder, destinationFile string) error {
@@ -28,33 +29,43 @@ func ZipFolder(sourceFolder, destinationFile string) error {
 }
 
 func addFiles(w *zip.Writer, basePath, baseInZip string) error {
-	files, filesErr := ioutil.ReadDir(basePath)
-	if filesErr != nil {
-		return fmt.Errorf("couldn't read %s. Err: %v", basePath, filesErr)
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
-			fileName := path.Join(basePath, file.Name())
-			data, dataErr := ioutil.ReadFile(fileName)
-			if dataErr != nil {
-				return fmt.Errorf("couldn't read file %s. Err: %v", fileName, dataErr)
-			}
-			f, fErr := w.Create(baseInZip + file.Name())
-			if fErr != nil {
-				return fmt.Errorf("couldn't open zip creator. Err: %v", fErr)
-			}
-			_, writeErr := f.Write(data)
-			if writeErr != nil {
-				return fmt.Errorf("couldn't open zip writer. Err: %v", writeErr)
-			}
-		} else if file.IsDir() {
-			newBase := path.Join(basePath, file.Name()) + "/"
-			addFilesErr := addFiles(w, newBase, baseInZip+file.Name()+"/")
-			if addFilesErr != nil {
-				return fmt.Errorf("couldn't add files. Err: %v", addFilesErr)
-			}
+	return filepath.Walk(basePath, func(fullpath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-	}
-	return nil
+
+		path := strings.TrimPrefix(fullpath, basePath)
+		if path == "" {
+			return nil
+		}
+
+		// make sure our path is relative to baseInZip
+		path = filepath.Join(baseInZip, path)
+
+		if info.IsDir() {
+			// directories always end with path separator
+			if _, err := w.Create(path + string(os.PathSeparator)); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		// add file to archive
+		s, err := os.Open(fullpath)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+
+		d, err := w.Create(path)
+		if err != nil {
+			return err
+		}
+
+		if _, err = io.Copy(d, s); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
