@@ -53,19 +53,15 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	}
 	json.Unmarshal(reqBody, &req)
 
-	neededCredentials, err := backup.NeededCredentials(req.BucketURL)
+	ctx := context.Background()
+	bucket, err := backup.GetBucket(ctx, req.BucketURL, req.SecretName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Invalid cloud provider: %v", err)
-		return
-	}
-	if err := backup.CreateCredentialsFromSecret(req.SecretName, neededCredentials); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Error occurred while getting the secret for accessing cloud provider: %v", err)
+		fmt.Fprintf(w, "Could not get the bucket: %v", err)
 		return
 	}
 
-	err = backup.UploadBackup(context.Background(), req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
+	err = backup.UploadBackup(ctx, bucket, req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
