@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-
 	"github.com/google/subcommands"
 	"github.com/gorilla/mux"
 	"github.com/hazelcast/platform-operator-agent/backup"
+	"io/ioutil"
+	"log"
+	"net/http"
 )
 
 type backupCmd struct {
@@ -41,18 +40,35 @@ type uploadReq struct {
 	BucketURL        string `json:"bucket_url"`
 	BackupFolderPath string `json:"backup_folder_path"`
 	HazelcastCRName  string `json:"hz_cr_name"`
+	SecretName       string `json:"secret_name"`
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
 	var req uploadReq
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Error occurred while read upload request's body.")
+		return
 	}
 	json.Unmarshal(reqBody, &req)
+
+	neededCredentials, err := backup.NeededCredentials(req.BucketURL)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Invalid cloud provider: %v", err)
+		return
+	}
+	if err := backup.CreateCredentialsFromSecret(req.SecretName, neededCredentials); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Error occurred while getting the secret for accessing cloud provider: %v", err)
+		return
+	}
+
 	err = backup.UploadBackup(context.Background(), req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

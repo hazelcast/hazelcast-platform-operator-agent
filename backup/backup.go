@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	"os"
 	"path"
+	"strings"
 
 	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/azureblob"
+	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
 
 	"github.com/hazelcast/platform-operator-agent/util"
@@ -28,7 +35,11 @@ func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string
 	}
 
 	logger.Info("Uploading backup folders to the bucket...")
+
 	for _, bf := range backupFolderFileList {
+		if bf.Name() == util.BucketDataGCPCredentialFile {
+			continue
+		}
 		backupItem := fmt.Sprintf("%s/%s", backupFolderPath, bf.Name())
 		UUIDFolderList, UUIDFolderErr := ioutil.ReadDir(backupItem)
 		if UUIDFolderErr != nil {
@@ -89,4 +100,71 @@ func uploadBackupToBucket(ctx context.Context, bucketURL string, fileName string
 		return fmt.Errorf("Bucket is not accesible.")
 	}
 	return nil
+}
+
+func CreateCredentialsFromSecret(secretName string, neededCredentials map[string]string) error {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	secret, err := clientset.CoreV1().Secrets("default").Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	for key, value := range secret.Data {
+		envKey, ok := neededCredentials[key]
+		if !ok {
+			continue
+		}
+		if key == util.BucketDataGCPCredentialFile {
+			f, err := os.Create("/data/hot-restart/" + key)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			f.WriteString(string(value))
+			os.Setenv(envKey, "/data/hot-restart/"+key)
+			delete(neededCredentials, key)
+			break
+		}
+
+		os.Setenv(envKey, string(value))
+		// One of the following credentials if enough no need to search for the other one
+		if key == util.BucketDataAzureStorageKey || key == util.BucketDataAzureSASToken {
+			delete(neededCredentials, util.BucketDataAzureStorageKey)
+			delete(neededCredentials, util.BucketDataAzureSASToken)
+			continue
+		}
+		delete(neededCredentials, key)
+	}
+	if len(neededCredentials) != 0 {
+		return fmt.Errorf("missing credentials")
+	}
+
+	return nil
+}
+
+func NeededCredentials(bucketPath string) (map[string]string, error) {
+	provider := strings.Split(bucketPath, ":")[0]
+
+	switch provider {
+	case util.AWS:
+		return map[string]string{util.BucketDataS3AccessKeyID: util.BucketDataS3EnvAccessKeyID,
+			util.BucketDataS3SecretAccessKey: util.BucketDataS3EnvSecretAccessKey,
+			util.BucketDataS3Region:          util.BucketDataS3EnvRegion}, nil
+	case util.GCP:
+		return map[string]string{util.BucketDataGCPCredentialFile: util.BucketDataGCPEnvCredentialFile}, nil
+	case util.AZURE:
+		return map[string]string{util.BucketDataAzureStorageAccount: util.BucketDataAzureEnvStorageAccount,
+			util.BucketDataAzureStorageKey: util.BucketDataAzureEnvStorageKey,
+			util.BucketDataAzureSASToken:   util.BucketDataAzureEnvSASToken}, nil
+	default:
+		return nil, fmt.Errorf("invalid bucket path")
+	}
 }

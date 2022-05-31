@@ -1,5 +1,5 @@
 VERSION ?= latest
-IMAGE_TAG_BASE ?= hazelcast/platform-operator-agent
+IMAGE_TAG_BASE ?= dokercagri/operator-agent
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 
 docker-build:
