@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/google/subcommands"
-	"github.com/gorilla/mux"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/google/subcommands"
+	"github.com/gorilla/mux"
+	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
 type backupCmd struct {

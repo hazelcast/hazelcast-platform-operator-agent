@@ -3,24 +3,22 @@ package backup
 import (
 	"context"
 	"fmt"
-
 	"io"
 	"io/ioutil"
+	"os"
+	"path"
+
+	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/azureblob"
+	"gocloud.dev/blob/gcsblob"
+	_ "gocloud.dev/blob/s3blob"
+	"gocloud.dev/gcp"
+	"golang.org/x/oauth2/google"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
-	"os"
-	"path"
-	"strings"
-
-	_ "gocloud.dev/blob/azureblob"
-	"gocloud.dev/blob/gcsblob"
-	_ "gocloud.dev/blob/s3blob"
-
-	"gocloud.dev/blob"
-	"gocloud.dev/gcp"
-	"golang.org/x/oauth2/google"
 
 	"github.com/hazelcast/platform-operator-agent/util"
 )
@@ -41,9 +39,6 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupFol
 	logger.Info("Uploading backup folders to the bucket...")
 
 	for _, bf := range backupFolderFileList {
-		if bf.Name() == util.BucketDataGCPCredentialFile {
-			continue
-		}
 		backupItem := fmt.Sprintf("%s/%s", backupFolderPath, bf.Name())
 		UUIDFolderList, UUIDFolderErr := ioutil.ReadDir(backupItem)
 		if UUIDFolderErr != nil {
@@ -103,7 +98,10 @@ func uploadBackupToBucket(ctx context.Context, bucket *blob.Bucket, fileName str
 }
 
 func GetBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket, error) {
-	provider := strings.Split(bucketURL, ":")[0]
+	provider, bucketName, err := util.ValidateBucketURL(bucketURL)
+	if err != nil {
+		return nil, err
+	}
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -112,8 +110,11 @@ func GetBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket,
 	if err != nil {
 		return nil, err
 	}
-
-	secret, err := clientset.CoreV1().Secrets("default").Get(context.TODO(), secretName, metav1.GetOptions{})
+	namespace, err := util.GetNamespace()
+	if err != nil {
+		return nil, err
+	}
+	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +150,6 @@ func GetBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket,
 			return nil, err
 		}
 
-		bucketName := strings.Split(bucketURL, ":")[1][2:]
-
 		bucket, err := gcsblob.OpenBucket(ctx, client, bucketName, nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not open %s bucket %v", bucketURL, err)
@@ -178,6 +177,5 @@ func setCredentialEnv(secretData map[string][]byte, credKey, credEnvKey, provide
 	if !ok {
 		return fmt.Errorf("invalid secret for %v : missing credential: %v", provider, credKey)
 	}
-	os.Setenv(credEnvKey, string(credValue))
-	return nil
+	return os.Setenv(credEnvKey, string(credValue))
 }
