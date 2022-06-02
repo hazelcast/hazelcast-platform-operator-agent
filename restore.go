@@ -19,6 +19,8 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"gocloud.dev/blob"
 
+	_ "gocloud.dev/blob/azureblob"
+	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
 )
 

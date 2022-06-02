@@ -41,18 +41,31 @@ type uploadReq struct {
 	BucketURL        string `json:"bucket_url"`
 	BackupFolderPath string `json:"backup_folder_path"`
 	HazelcastCRName  string `json:"hz_cr_name"`
+	SecretName       string `json:"secret_name"`
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
 	var req uploadReq
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Error occurred while read upload request's body.")
+		return
 	}
 	json.Unmarshal(reqBody, &req)
-	err = backup.UploadBackup(context.Background(), req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
+
+	ctx := context.Background()
+	bucket, err := backup.GetBucket(ctx, req.BucketURL, req.SecretName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Could not get the bucket: %v", err)
+		return
+	}
+
+	err = backup.UploadBackup(ctx, bucket, req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

@@ -9,12 +9,21 @@ import (
 	"path"
 
 	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/azureblob"
+	"gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
+	"gocloud.dev/gcp"
+	"golang.org/x/oauth2/google"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 
 	"github.com/hazelcast/platform-operator-agent/util"
 )
 
-func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string, hazelcastCRName string) error {
+func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupFolderPath, hazelcastCRName string) error {
 	backupFolderFileList, backupFolderErr := ioutil.ReadDir(backupFolderPath)
 	logger := util.GetLogger(ctx)
 	if backupFolderErr != nil {
@@ -28,6 +37,7 @@ func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string
 	}
 
 	logger.Info("Uploading backup folders to the bucket...")
+
 	for _, bf := range backupFolderFileList {
 		backupItem := fmt.Sprintf("%s/%s", backupFolderPath, bf.Name())
 		UUIDFolderList, UUIDFolderErr := ioutil.ReadDir(backupItem)
@@ -44,7 +54,7 @@ func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string
 				return nil
 			}
 			humanReadableBackupFolder := util.ConvertHumanReadableFormat(bf.Name())
-			uploadErr := uploadBackupToBucket(ctx, bucketURL, fmt.Sprintf("%s/%s/%s.zip", hazelcastCRName, humanReadableBackupFolder, uf.Name()), zipFilePath)
+			uploadErr := uploadBackupToBucket(ctx, bucket, fmt.Sprintf("%s/%s/%s.zip", hazelcastCRName, humanReadableBackupFolder, uf.Name()), zipFilePath)
 			if uploadErr != nil {
 				logger.Errorf("Backup folder: %s couldn't be uploaded. Err: %v", humanReadableBackupFolder, uploadErr)
 				logger.Debugf("Backup folder: %s couldn't be uploaded. Err: %v", fmt.Sprintf("%s/%s", bf.Name(), uf.Name()), uploadErr)
@@ -63,11 +73,7 @@ func UploadBackup(ctx context.Context, bucketURL string, backupFolderPath string
 	return nil
 }
 
-func uploadBackupToBucket(ctx context.Context, bucketURL string, fileName string, filePath string) error {
-	bucket, err := blob.OpenBucket(context.Background(), bucketURL)
-	if err != nil {
-		return fmt.Errorf("Could not open %s bucket %v", bucketURL, err)
-	}
+func uploadBackupToBucket(ctx context.Context, bucket *blob.Bucket, fileName string, filePath string) error {
 	defer bucket.Close()
 	if accessible, _ := bucket.IsAccessible(ctx); accessible {
 		w, err := bucket.NewWriter(context.Background(), fileName, nil)
@@ -89,4 +95,87 @@ func uploadBackupToBucket(ctx context.Context, bucketURL string, fileName string
 		return fmt.Errorf("Bucket is not accesible.")
 	}
 	return nil
+}
+
+func GetBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket, error) {
+	provider, bucketName, err := util.ValidateBucketURL(bucketURL)
+	if err != nil {
+		return nil, err
+	}
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	namespace, err := util.GetNamespace()
+	if err != nil {
+		return nil, err
+	}
+	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	switch provider {
+	case util.AWS:
+		if err := setCredentialEnv(secret.Data, util.BucketDataS3AccessKeyID, util.BucketDataS3EnvAccessKeyID, provider); err != nil {
+			return nil, err
+		}
+		if err := setCredentialEnv(secret.Data, util.BucketDataS3Region, util.BucketDataS3EnvRegion, provider); err != nil {
+			return nil, err
+		}
+		if err := setCredentialEnv(secret.Data, util.BucketDataS3SecretAccessKey, util.BucketDataS3EnvSecretAccessKey, provider); err != nil {
+			return nil, err
+		}
+		bucket, err := blob.OpenBucket(ctx, bucketURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not open %s bucket %v", bucketURL, err)
+		}
+		return bucket, nil
+	case util.GCP:
+		credValue, ok := secret.Data[util.BucketDataGCPCredentialFile]
+		if !ok {
+			return nil, fmt.Errorf("invalid secret for %v : missing credential: %v", provider, util.BucketDataGCPCredentialFile)
+		}
+		creds, err := google.CredentialsFromJSON(ctx, credValue, "https://www.googleapis.com/auth/cloud-platform")
+		if err != nil {
+			return nil, err
+		}
+		client, err := gcp.NewHTTPClient(
+			gcp.DefaultTransport(),
+			gcp.CredentialsTokenSource(creds))
+		if err != nil {
+			return nil, err
+		}
+
+		bucket, err := gcsblob.OpenBucket(ctx, client, bucketName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("could not open %s bucket %v", bucketURL, err)
+		}
+		return bucket, nil
+	case util.AZURE:
+		if err := setCredentialEnv(secret.Data, util.BucketDataAzureStorageAccount, util.BucketDataAzureEnvStorageAccount, provider); err != nil {
+			return nil, err
+		}
+		if err := setCredentialEnv(secret.Data, util.BucketDataAzureStorageKey, util.BucketDataAzureEnvStorageKey, provider); err != nil {
+			return nil, err
+		}
+		bucket, err := blob.OpenBucket(ctx, bucketURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not open %s bucket %v", bucketURL, err)
+		}
+		return bucket, nil
+	default:
+		return nil, fmt.Errorf("invalid bucket path")
+	}
+}
+
+func setCredentialEnv(secretData map[string][]byte, credKey, credEnvKey, provider string) error {
+	credValue, ok := secretData[credKey]
+	if !ok {
+		return fmt.Errorf("invalid secret for %v : missing credential: %v", provider, credKey)
+	}
+	return os.Setenv(credEnvKey, string(credValue))
 }
