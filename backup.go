@@ -55,7 +55,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(reqBody, &req)
 
 	ctx := context.Background()
-	bucket, err := backup.GetBucket(ctx, req.BucketURL, req.SecretName)
+	bucket, err := backup.OpenBucket(ctx, req.BucketURL, req.SecretName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Could not get the bucket: %v", err)

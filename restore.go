@@ -1,11 +1,13 @@
 package main
 
 import (
-	"archive/zip"
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"errors"
 	"flag"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
@@ -111,8 +113,8 @@ func download(ctx context.Context, src, dst string, id int) error {
 		if err != nil {
 			return err
 		}
-		// naive validation, we only want zip files
-		if !strings.HasSuffix(obj.Key, ".zip") {
+		// naive validation, we only want tgz files
+		if !strings.HasSuffix(obj.Key, ".tar.gz") {
 			continue
 		}
 
@@ -134,42 +136,49 @@ func download(ctx context.Context, src, dst string, id int) error {
 	return nil
 }
 
-func save(ctx context.Context, bucket *blob.Bucket, key, path string) error {
+func save(ctx context.Context, bucket *blob.Bucket, key, target string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
-	name := filepath.Join(path, key)
-
-	d, err := os.Create(name)
+	g, err := gzip.NewReader(s)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer g.Close()
 
-	if _, err := io.Copy(d, s); err != nil {
-		return err
+	t := tar.NewReader(g)
+	for {
+		header, err := t.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		name := filepath.Join(target, header.Name)
+		if err := saveFile(name, header.FileInfo(), t); err != nil {
+			return err
+		}
+	}
+}
+
+func saveFile(name string, info fs.FileInfo, src io.Reader) error {
+	if info.IsDir() {
+		return os.MkdirAll(name, info.Mode())
 	}
 
-	// flush file
-	if err := d.Sync(); err != nil {
+	dst, err := os.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+	if err != nil {
 		return err
 	}
+	defer dst.Close()
 
-	if err := d.Close(); err != nil {
-		return err
-	}
-
-	dst := filepath.Join(path, strings.TrimSuffix(key, filepath.Ext(key)))
-
-	if err := unzip(name, dst); err != nil {
-		return err
-	}
-
-	// once unzipped we can remove archive
-	return os.RemoveAll(name)
+	_, err = io.Copy(dst, src)
+	return err
 }
 
 var errParseID = errors.New("Couldn't parse statefullset hostname")
@@ -190,49 +199,5 @@ func removeAll(path string) error {
 	for _, e := range names {
 		os.RemoveAll(filepath.Join(path, e.Name()))
 	}
-	return nil
-}
-
-func unzip(src, dst string) error {
-	r, err := zip.OpenReader(src)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	for _, f := range r.File {
-		name := filepath.Join(dst, f.Name)
-
-		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(name, os.ModePerm); err != nil {
-				return err
-			}
-			continue
-		}
-
-		// ensure directory exists
-		if err := os.MkdirAll(filepath.Dir(name), os.ModePerm); err != nil {
-			return err
-		}
-
-		// open zip file
-		s, err := f.Open()
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-
-		// create filesystem file
-		d, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			return err
-		}
-		defer d.Close()
-
-		if _, err := io.Copy(d, s); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
