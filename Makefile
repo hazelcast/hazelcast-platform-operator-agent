@@ -1,4 +1,4 @@
-VERSION ?= latest-snapshot
+VERSION ?= 0.1.0
 IMAGE_TAG_BASE ?= hazelcast/platform-operator-agent
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 
