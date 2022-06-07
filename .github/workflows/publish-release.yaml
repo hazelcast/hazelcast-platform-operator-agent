@@ -1,0 +1,100 @@
+name: Publish Agent Release
+on:
+  workflow_dispatch:
+    inputs:
+      RELEASE_VERSION:
+        description: "Version in the form of X.Y[.Z]"
+        required: true
+
+jobs:
+  publish-release-image:
+    name: Publish Agent Stable Version to Docker Hub
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ github.event.inputs.RELEASE_VERSION }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set Up Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.17'
+
+      - name: Cache Golang Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Validate Version
+        run: |
+          NUMBER='(0|[1-9][0-9]*)'
+          echo ${RELEASE_VERSION} | egrep "^$NUMBER.$NUMBER(.$NUMBER)?$"
+
+      - name: Create Release Branch
+        id: newBranch
+        run: git checkout -b release/v${RELEASE_VERSION}
+
+      - name: Convert latest-snapshot To Release Version
+        run: |
+          sed -i "s|VERSION ?= latest-snapshot|VERSION ?= ${RELEASE_VERSION}|" Makefile
+
+      - name: Commit And Push Changes
+        run: |
+          git fetch origin main
+          git config user.email "devopshelm@hazelcast.com"
+          git config user.name "devOpsHelm"
+          git add Makefile
+          git commit --signoff -m "${RELEASE_VERSION}"
+
+          git push origin release/v${RELEASE_VERSION}
+
+      - name: Build Operator Agent Image
+        run: make docker-build
+
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKERHUB_PASSWORD }}" \
+            | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Push Operator Agent Image
+        id: pushImage
+        run: make docker-push
+
+      - name: Create a New Tag
+        id: newTag
+        if: steps.pushImage.outcome == 'success'
+        run: |
+          TAG_VERSION=v${RELEASE_VERSION}
+          git tag ${TAG_VERSION}
+          git push origin ${TAG_VERSION}
+
+      - name: Create Release
+        if: steps.newTag.outcome == 'success'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ env.RELEASE_VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          generateReleaseNotes: true
+
+      - name: Delete Release Branch
+        if: always() && steps.newBranch.outcome == 'success'
+        run: git push origin --delete release/v${RELEASE_VERSION}
+
+  slack_notify:
+    name: Slack Notify
+    needs: [ 'publish-release-image' ]
+    if: always() &&  needs.publish-release-image.result != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 8398a7/action-slack@f3635935f58910a6d6951b73efe9037c960c8c04
+        with:
+          fields: repo,commit,author,action,eventName,workflow
+          status: failure
+          channel: "#github-actions-log"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
