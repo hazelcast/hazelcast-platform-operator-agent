@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,10 +27,16 @@ import (
 	"github.com/hazelcast/platform-operator-agent/util"
 )
 
+var ErrEmptyBackupDir = errors.New("empty backup directory")
+
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupsDir, prefix string) error {
 	backupSeqs, err := ioutil.ReadDir(backupsDir)
 	if err != nil {
 		return err
+	}
+
+	if len(backupSeqs) == 0 {
+		return ErrEmptyBackupDir
 	}
 
 	// iterate over <backup-dir>/backup-<backupSeq>/ dirs

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -48,25 +47,32 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	var req uploadReq
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Error occurred while read upload request's body.")
+		http.Error(w, "", http.StatusBadRequest)
+		log.Println("Error occurred while read upload request's body:", err)
 		return
 	}
-	json.Unmarshal(reqBody, &req)
+
+	if err := json.Unmarshal(reqBody, &req); err != nil {
+		http.Error(w, "", http.StatusBadRequest)
+		log.Println("Error occurred while read parsing request's body:", err)
+		return
+	}
 
 	ctx := context.Background()
 	bucket, err := backup.OpenBucket(ctx, req.BucketURL, req.SecretName)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Could not get the bucket: %v", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		log.Println("Could not open the bucket:", err)
 		return
 	}
 
 	err = backup.UploadBackup(ctx, bucket, req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
+		log.Println("Could not upload the backup:", err)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
