@@ -46,8 +46,8 @@ jobs:
       - name: Commit And Push Changes
         run: |
           git fetch origin main
-          git config user.email "aborshchuk@hazelcast.com"
-          git config user.name "aborshchuk"
+          git config user.email "devopshelm@hazelcast.com"
+          git config user.name "devOpsHelm"
           git add Makefile
           git commit --signoff -m "${RELEASE_VERSION}"
 
