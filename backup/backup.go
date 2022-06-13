@@ -10,7 +10,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
@@ -23,8 +26,37 @@ import (
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/s3blob"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+)
 
-	"github.com/hazelcast/platform-operator-agent/util"
+// Blob storage types
+const (
+	AWS   = "s3"
+	GCP   = "gs"
+	AZURE = "azblob"
+)
+
+// AWS
+const (
+	BucketDataS3AccessKeyID        = "access-key-id"
+	BucketDataS3SecretAccessKey    = "secret-access-key"
+	BucketDataS3Region             = "region"
+	BucketDataS3EnvAccessKeyID     = "AWS_ACCESS_KEY_ID"
+	BucketDataS3EnvSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
+	BucketDataS3EnvRegion          = "AWS_REGION"
+)
+
+// GCP
+const (
+	BucketDataGCPCredentialFile    = "google-credentials-path"
+	BucketDataGCPEnvCredentialFile = "GOOGLE_APPLICATION_CREDENTIALS"
+)
+
+// Azure
+const (
+	BucketDataAzureStorageAccount    = "storage-account"
+	BucketDataAzureStorageKey        = "storage-key"
+	BucketDataAzureEnvStorageAccount = "AZURE_STORAGE_ACCOUNT"
+	BucketDataAzureEnvStorageKey     = "AZURE_STORAGE_KEY"
 )
 
 var ErrEmptyBackupDir = errors.New("empty backup directory")
@@ -47,7 +79,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupsDi
 			return err
 		}
 
-		seq := util.ConvertHumanReadableFormat(s.Name())
+		seq := convertHumanReadableFormat(s.Name())
 
 		// iterate over <backup-dir>/backup-<backupSeq>/<UUID> dirs
 		for _, u := range backupUUIDs {
@@ -119,7 +151,7 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 }
 
 func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket, error) {
-	provider, _, err := util.ValidateBucketURL(bucketURL)
+	provider, _, err := validateBucketURL(bucketURL)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +166,7 @@ func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket
 		return nil, err
 	}
 
-	namespace, err := util.GetNamespace()
+	namespace, err := getNamespace()
 	if err != nil {
 		return nil, err
 	}
@@ -145,13 +177,13 @@ func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket
 	}
 
 	switch provider {
-	case util.AWS:
+	case AWS:
 		return openAWS(ctx, bucketURL, secret.Data)
 
-	case util.GCP:
+	case GCP:
 		return openGCP(ctx, bucketURL, secret.Data)
 
-	case util.AZURE:
+	case AZURE:
 		return openAZURE(ctx, bucketURL, secret.Data)
 
 	default:
@@ -160,13 +192,13 @@ func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket
 }
 
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, util.BucketDataS3AccessKeyID, util.BucketDataS3EnvAccessKeyID); err != nil {
+	if err := setCredentialEnv(secret, BucketDataS3AccessKeyID, BucketDataS3EnvAccessKeyID); err != nil {
 		return nil, err
 	}
-	if err := setCredentialEnv(secret, util.BucketDataS3Region, util.BucketDataS3EnvRegion); err != nil {
+	if err := setCredentialEnv(secret, BucketDataS3Region, BucketDataS3EnvRegion); err != nil {
 		return nil, err
 	}
-	if err := setCredentialEnv(secret, util.BucketDataS3SecretAccessKey, util.BucketDataS3EnvSecretAccessKey); err != nil {
+	if err := setCredentialEnv(secret, BucketDataS3SecretAccessKey, BucketDataS3EnvSecretAccessKey); err != nil {
 		return nil, err
 	}
 
@@ -174,14 +206,14 @@ func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	_, bucketName, err := util.ValidateBucketURL(bucketURL)
+	_, bucketName, err := validateBucketURL(bucketURL)
 	if err != nil {
 		return nil, err
 	}
 
-	value, ok := secret[util.BucketDataGCPCredentialFile]
+	value, ok := secret[BucketDataGCPCredentialFile]
 	if !ok {
-		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", util.BucketDataGCPCredentialFile)
+		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", BucketDataGCPCredentialFile)
 	}
 
 	creds, err := google.CredentialsFromJSON(ctx, value, "https://www.googleapis.com/auth/cloud-platform")
@@ -201,11 +233,11 @@ func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 }
 
 func openAZURE(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, util.BucketDataAzureStorageAccount, util.BucketDataAzureEnvStorageAccount); err != nil {
+	if err := setCredentialEnv(secret, BucketDataAzureStorageAccount, BucketDataAzureEnvStorageAccount); err != nil {
 		return nil, err
 	}
 
-	if err := setCredentialEnv(secret, util.BucketDataAzureStorageKey, util.BucketDataAzureEnvStorageKey); err != nil {
+	if err := setCredentialEnv(secret, BucketDataAzureStorageKey, BucketDataAzureEnvStorageKey); err != nil {
 		return nil, err
 	}
 
@@ -218,4 +250,38 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 		return fmt.Errorf("invalid secret: missing key: %v", key)
 	}
 	return os.Setenv(name, string(value))
+}
+
+// convertHumanReadableFormat converts backup-sequenceID into human readable format.
+// backup-1643801670242 --> 2022-02-18-14-57-44
+func convertHumanReadableFormat(backupFolderName string) string {
+	epochString := strings.ReplaceAll(backupFolderName, "backup-", "")
+	timestamp, _ := strconv.ParseInt(epochString, 10, 64)
+	t := time.UnixMilli(timestamp)
+	return t.Format("2006-01-02-15-04-05")
+}
+
+func validateBucketURL(bucketURL string) (string, string, error) {
+	r, _ := regexp.Compile(fmt.Sprintf("^(%s|%s|%s)://(.+)$", AWS, GCP, AZURE))
+	if !r.MatchString(bucketURL) {
+		return "", "", fmt.Errorf("invalid BucketURL: %v", bucketURL)
+	}
+	subMatch := r.FindStringSubmatch(bucketURL)
+
+	provider := subMatch[1]
+	bucketName := subMatch[2]
+	return provider, bucketName, nil
+}
+
+func getNamespace() (string, error) {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns, nil
+	}
+	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns, nil
+		}
+		return "", err
+	}
+	return "", nil
 }
