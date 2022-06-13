@@ -107,6 +107,24 @@ func download(ctx context.Context, src, dst string, id int) error {
 	}
 	defer bucket.Close()
 
+	key, err := find(ctx, bucket, id)
+	if err != nil {
+		return err
+	}
+	if key == "" {
+		// skip download
+		return nil
+	}
+
+	log.Println("Restoring", key)
+	if err := save(ctx, bucket, key, dst); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 	var keys []string
 	var latest string
 	iter := bucket.List(nil)
@@ -116,7 +134,7 @@ func download(ctx context.Context, src, dst string, id int) error {
 			break
 		}
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// naive validation, we only want tgz files
@@ -149,18 +167,13 @@ func download(ctx context.Context, src, dst string, id int) error {
 
 	if len(keys) == 0 || id > len(keys)-1 {
 		// skip download
-		return nil
+		return "", nil
 	}
 
 	// to be extra safe we always sort the keys
 	sort.Strings(keys)
 
-	log.Println("Restoring", keys[id])
-	if err := save(ctx, bucket, keys[id], dst); err != nil {
-		return err
-	}
-
-	return nil
+	return keys[id], nil
 }
 
 func save(ctx context.Context, bucket *blob.Bucket, key, target string) error {
