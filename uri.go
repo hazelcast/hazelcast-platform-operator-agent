@@ -9,8 +9,9 @@ func formatURI(commonURI string) (uri string, err error) {
 	}
 
 	formated := url.URL{
-		Scheme: u.Scheme,
-		Host:   u.Host,
+		Scheme:   u.Scheme,
+		Host:     u.Host,
+		RawQuery: u.RawQuery,
 	}
 
 	if u.Path == "" {
@@ -29,6 +30,10 @@ func formatURI(commonURI string) (uri string, err error) {
 
 	v := url.Values{
 		"prefix": []string{u.Path},
+	}
+
+	if region := u.Query().Get("region"); region != "" {
+		v.Set("region", region)
 	}
 
 	// for cdk we need to use unescaped prefix
