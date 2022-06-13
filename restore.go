@@ -28,8 +28,13 @@ import (
 
 const restoreLock = ".restore_lock"
 
-// StatefulSet hostname is always DSN RFC 1123 and number
-var hostnameRe = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
+var (
+	// StatefulSet hostname is always DSN RFC 1123 and number
+	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
+
+	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
+	dateRE = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}/")
+)
 
 type restoreCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
@@ -58,7 +63,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
-	if !hostnameRe.MatchString(r.Hostname) {
+	if !hostnameRE.MatchString(r.Hostname) {
 		log.Println("Invalid hostname, need to confrom to statefullset naming scheme")
 		return subcommands.ExitFailure
 	}
@@ -103,7 +108,7 @@ func download(ctx context.Context, src, dst string, id int) error {
 	defer bucket.Close()
 
 	var keys []string
-
+	var latest string
 	iter := bucket.List(nil)
 	for {
 		obj, err := iter.Next(ctx)
@@ -113,12 +118,33 @@ func download(ctx context.Context, src, dst string, id int) error {
 		if err != nil {
 			return err
 		}
+
 		// naive validation, we only want tgz files
 		if !strings.HasSuffix(obj.Key, ".tar.gz") {
 			continue
 		}
 
+		// find latest directory if key starts with date (is in a directory with backups)
+		if dateRE.MatchString(obj.Key) {
+			dir := filepath.Dir(obj.Key)
+			// lexicographical comparison is good enough
+			if dir > latest {
+				latest = dir
+			}
+		}
+
 		keys = append(keys, obj.Key)
+	}
+
+	// this was a directory with backups, filter keys in latest backup
+	if latest != "" {
+		var l []string
+		for _, k := range keys {
+			if strings.HasPrefix(k, latest) {
+				l = append(l, k)
+			}
+		}
+		keys = l
 	}
 
 	if len(keys) == 0 || id > len(keys)-1 {
@@ -129,6 +155,7 @@ func download(ctx context.Context, src, dst string, id int) error {
 	// to be extra safe we always sort the keys
 	sort.Strings(keys)
 
+	log.Println("Restoring", keys[id])
 	if err := save(ctx, bucket, keys[id], dst); err != nil {
 		return err
 	}
@@ -184,7 +211,7 @@ func saveFile(name string, info fs.FileInfo, src io.Reader) error {
 var errParseID = errors.New("Couldn't parse statefullset hostname")
 
 func parseID(hostname string) (int, error) {
-	parts := hostnameRe.FindAllStringSubmatch(hostname, -1)
+	parts := hostnameRE.FindAllStringSubmatch(hostname, -1)
 	if len(parts) != 1 && len(parts[0]) != 3 {
 		return 0, errParseID
 	}
