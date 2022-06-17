@@ -6,7 +6,7 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY main.go backup.go restore.go ./
+COPY main.go backup.go restore.go uri.go ./
 COPY backup/ backup/
 
 RUN GOOS=linux GOARCH=amd64 go build -o /operator-agent

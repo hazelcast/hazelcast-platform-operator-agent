@@ -58,8 +58,15 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bucketURI, err := formatURI(req.BucketURL)
+	if err != nil {
+		http.Error(w, "", http.StatusBadRequest)
+		log.Println("Error occurred while read parsing bucket URI:", err)
+		return
+	}
+
 	ctx := context.Background()
-	bucket, err := backup.OpenBucket(ctx, req.BucketURL, req.SecretName)
+	bucket, err := backup.OpenBucket(ctx, bucketURI, req.SecretName)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		log.Println("Could not open the bucket:", err)

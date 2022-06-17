@@ -68,6 +68,11 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
+	bucket, err := formatURI(r.Bucket)
+	if err != nil {
+		return subcommands.ExitFailure
+	}
+
 	lock := filepath.Join(r.Destination, restoreLock)
 
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
@@ -82,7 +87,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	// run download process
-	if err := download(ctx, r.Bucket, r.Destination, id); err != nil {
+	if err := download(ctx, bucket, r.Destination, id); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
