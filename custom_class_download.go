@@ -89,9 +89,9 @@ func saveJar(ctx context.Context, bucket *blob.Bucket, key, path string) error {
 	}
 	defer s.Close()
 
-	dest_path := filepath.Join(path, key)
+	destPath := filepath.Join(path, key)
 
-	d, err := os.Create(dest_path)
+	d, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
