@@ -38,12 +38,6 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 		return subcommands.ExitFailure
 	}
 
-	// cleanup destination directory
-	if err := removeAll(r.Destination); err != nil {
-		log.Println("cleanup failed", err)
-		return subcommands.ExitFailure
-	}
-
 	// run download process
 	if err := downloadClassJars(ctx, r.Bucket, r.Destination); err != nil {
 		log.Println("download error", err)
