@@ -54,6 +54,7 @@ func (r *restoreCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/data/persistence/backup", "dst filesystem path")
+	f.StringVar(&r.Secret, "secret", "", "secret name for the bucket credentials")
 }
 
 func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
