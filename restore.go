@@ -41,7 +41,7 @@ type restoreCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
 	Destination string `envconfig:"RESTORE_DESTINATION"`
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
-	Secret      string `envconfig:"RESTORE_SECRET_NAME"`
+	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
 }
 
 func (*restoreCmd) Name() string     { return "restore" }
@@ -54,7 +54,7 @@ func (r *restoreCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/data/persistence/backup", "dst filesystem path")
-	f.StringVar(&r.Secret, "secret", "", "secret name for the bucket credentials")
+	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -95,7 +95,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	// run download process
-	if err := download(ctx, bucket, r.Destination, id, r.Secret); err != nil {
+	if err := download(ctx, bucket, r.Destination, id, r.SecretName); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
