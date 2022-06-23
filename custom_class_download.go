@@ -12,11 +12,14 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 	"gocloud.dev/blob"
+
+	"github.com/hazelcast/platform-operator-agent/bucket"
 )
 
 type customClassDownloadCmd struct {
 	Bucket      string `envconfig:"CCD_BUCKET"`
 	Destination string `envconfig:"CCD_DESTINATION"`
+	SecretName  string `envconfig:"CCD_SECRET_NAME"`
 }
 
 func (*customClassDownloadCmd) Name() string     { return "custom-class-download" }
@@ -27,6 +30,7 @@ func (r *customClassDownloadCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/customClass", "dst filesystem path")
+	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -39,7 +43,7 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 	}
 
 	// run download process
-	if err := downloadClassJars(ctx, r.Bucket, r.Destination); err != nil {
+	if err := downloadClassJars(ctx, r.Bucket, r.Destination, r.SecretName); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
@@ -47,8 +51,8 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 	return subcommands.ExitSuccess
 }
 
-func downloadClassJars(ctx context.Context, src, dst string) error {
-	bucket, err := blob.OpenBucket(ctx, src)
+func downloadClassJars(ctx context.Context, src, dst, sn string) error {
+	bucket, err := bucket.OpenBucket(ctx, src, sn)
 	if err != nil {
 		return err
 	}
