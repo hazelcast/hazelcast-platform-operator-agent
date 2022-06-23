@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/google/subcommands"
+	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
 	"gocloud.dev/blob"
 
@@ -40,6 +41,7 @@ type restoreCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
 	Destination string `envconfig:"RESTORE_DESTINATION"`
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
+	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
 }
 
 func (*restoreCmd) Name() string     { return "restore" }
@@ -52,6 +54,7 @@ func (r *restoreCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/data/persistence/backup", "dst filesystem path")
+	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -92,7 +95,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	// run download process
-	if err := download(ctx, bucket, r.Destination, id); err != nil {
+	if err := download(ctx, bucket, r.Destination, id, r.SecretName); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
@@ -105,8 +108,8 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	return subcommands.ExitSuccess
 }
 
-func download(ctx context.Context, src, dst string, id int) error {
-	bucket, err := blob.OpenBucket(ctx, src)
+func download(ctx context.Context, src, dst string, id int, sn string) error {
+	bucket, err := bucket.OpenBucket(ctx, src, sn)
 	if err != nil {
 		return err
 	}

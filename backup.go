@@ -11,6 +11,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/gorilla/mux"
 	"github.com/hazelcast/platform-operator-agent/backup"
+	"github.com/hazelcast/platform-operator-agent/bucket"
 )
 
 type backupCmd struct {
@@ -66,7 +67,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	bucket, err := backup.OpenBucket(ctx, bucketURI, req.SecretName)
+	bucket, err := bucket.OpenBucket(ctx, bucketURI, req.SecretName)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		log.Println("Could not open the bucket:", err)
