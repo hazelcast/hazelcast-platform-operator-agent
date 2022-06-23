@@ -8,6 +8,7 @@ RUN go mod download
 
 COPY main.go backup.go restore.go uri.go ./
 COPY backup/ backup/
+COPY bucket/ bucket/
 
 RUN GOOS=linux GOARCH=amd64 go build -o /operator-agent
 
