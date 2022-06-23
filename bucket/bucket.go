@@ -97,7 +97,8 @@ func validateBucketURL(bucketURL string) (string, string, error) {
 	subMatch := r.FindStringSubmatch(bucketURL)
 
 	provider := subMatch[1]
-	bucketName := subMatch[2]
+	bucketName := strings.Split(subMatch[2], "?")[0]
+
 	return provider, bucketName, nil
 }
 
