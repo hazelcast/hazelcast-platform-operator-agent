@@ -104,9 +104,5 @@ func saveJar(ctx context.Context, bucket *blob.Bucket, key, path string) error {
 		return err
 	}
 
-	if err := d.Close(); err != nil {
-		return err
-	}
-
 	return nil
 }
