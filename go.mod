@@ -6,8 +6,8 @@ require (
 	github.com/google/subcommands v1.0.1
 	github.com/gorilla/mux v1.8.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/sirupsen/logrus v1.8.1
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	k8s.io/apimachinery v0.24.0
 	k8s.io/client-go v0.24.0
 )

@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"gocloud.dev/blob"
+	"golang.org/x/sync/errgroup"
+
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/s3blob"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -32,6 +34,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupsDi
 	}
 
 	// iterate over <backup-dir>/backup-<backupSeq>/ dirs
+	g, ctx := errgroup.WithContext(ctx)
 	for _, s := range backupSeqs {
 		seqDir := filepath.Join(backupsDir, s.Name())
 		backupUUIDs, err := ioutil.ReadDir(seqDir)
@@ -43,17 +46,20 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupsDi
 
 		// iterate over <backup-dir>/backup-<backupSeq>/<UUID> dirs
 		for _, u := range backupUUIDs {
-			uuidDir := filepath.Join(seqDir, u.Name())
+			ID := u.Name()
+			backupDir := filepath.Join(seqDir, ID)
+			backupKey := filepath.Join(prefix, seq, ID+".tar.gz")
+			g.Go(func() error {
+				// always remove backup dir to reclaim space
+				defer os.RemoveAll(backupDir)
 
-			key := filepath.Join(prefix, seq, u.Name()+".tar.gz")
-			if err := uploadBackup(ctx, bucket, key, uuidDir, u.Name()); err != nil {
-				return err
-			}
+				// run upload concurrently
+				return uploadBackup(ctx, bucket, backupKey, backupDir, ID)
+			})
+		}
 
-			// after uploading backup we can remove local copy
-			if err := os.RemoveAll(uuidDir); err != nil {
-				return err
-			}
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		// we finished uploading backups
