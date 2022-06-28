@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -130,11 +131,6 @@ func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	_, bucketName, err := validateBucketURL(bucketURL)
-	if err != nil {
-		return nil, err
-	}
-
 	value, ok := secret[BucketDataGCPCredentialFile]
 	if !ok {
 		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", BucketDataGCPCredentialFile)
@@ -153,7 +149,17 @@ func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 		return nil, err
 	}
 
-	return gcsblob.OpenBucket(ctx, client, bucketName, nil)
+	u, err := url.Parse(bucketURL)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket, err := gcsblob.OpenBucket(ctx, client, u.Host, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return blob.PrefixedBucket(bucket, u.Query().Get("prefix")), nil
 }
 
 func openAZURE(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
