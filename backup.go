@@ -45,6 +45,8 @@ type uploadReq struct {
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
+	log.Println("Received backup upload request")
+
 	var req uploadReq
 	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -58,6 +60,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		log.Println("Error occurred while read parsing request's body:", err)
 		return
 	}
+	log.Printf("Request parameters are: %+v\n", req)
 
 	bucketURI, err := formatURI(req.BucketURL)
 	if err != nil {
@@ -82,6 +85,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	log.Println("Backup upload finished successfully")
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {
