@@ -7,6 +7,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"path"
 	"sync"
 
 	"github.com/google/subcommands"
@@ -14,7 +15,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/bucket"
-	"golang.org/x/sync/errgroup"
 )
 
 type backupCmd struct {
@@ -52,13 +52,6 @@ type uploadService struct {
 	tasks map[uuid.UUID]*task
 }
 
-// task is an upload process that is cancelable
-type task struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	err    error
-}
-
 type uploadReq struct {
 	BucketURL        string `json:"bucket_url"`
 	BackupFolderPath string `json:"backup_folder_path"`
@@ -71,20 +64,14 @@ type uploadResp struct {
 }
 
 func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
 	var req uploadReq
 	if err := s.decodeBody(r, &req); err != nil {
 		log.Println("Error occurred while parsing body:", err)
 		s.httpError(w, http.StatusBadRequest)
 		return
 	}
-
-	bucketURI, err := formatURI(req.BucketURL)
-	if err != nil {
-		log.Println("Error occurred while read parsing bucket URI:", err)
-		s.httpError(w, http.StatusBadRequest)
-		return
-	}
-	log.Printf("Request parameters are: %+v\n", req)
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
@@ -93,9 +80,9 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	t := &task{
+		req:    req,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -105,26 +92,7 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	// run upload in background
-	g.Go(func() error {
-		defer log.Println(ID, "task finished")
-		defer cancel()
-
-		bucket, err := bucket.OpenBucket(ctx, bucketURI, req.SecretName)
-		if err != nil {
-			log.Println(ID, "openBucket:", err)
-			t.err = err
-			return err
-		}
-
-		err = backup.UploadBackup(ctx, bucket, req.BucketURL, req.BackupFolderPath, req.HazelcastCRName)
-		if err != nil {
-			log.Println(ID, "uploadBackup:", err)
-			t.err = err
-			return err
-		}
-
-		return nil
-	})
+	go t.process(ID)
 
 	s.httpJSON(w, uploadResp{ID: ID})
 }
@@ -134,13 +102,15 @@ type statusResp struct {
 }
 
 var (
-	inprogressResp = statusResp{Status: "In progress"}
-	canceledResp   = statusResp{Status: "Canceled"}
-	errorResp      = statusResp{Status: "Error"}
-	finishedResp   = statusResp{Status: "Finished"}
+	inProgressResp = statusResp{Status: "IN_PROGRESS"}
+	canceledResp   = statusResp{Status: "CANCELED"}
+	failureResp    = statusResp{Status: "FAILURE"}
+	successResp    = statusResp{Status: "SUCCESS"}
 )
 
 func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
 	vars := mux.Vars(r)
 
 	ID, err := uuid.Parse(vars["id"])
@@ -161,7 +131,7 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
-		s.httpJSON(w, inprogressResp)
+		s.httpJSON(w, inProgressResp)
 		return
 	}
 
@@ -173,14 +143,16 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// there was some actual error
 	if t.err != nil {
-		s.httpJSON(w, errorResp)
+		s.httpJSON(w, failureResp)
 		return
 	}
 
-	s.httpJSON(w, finishedResp)
+	s.httpJSON(w, successResp)
 }
 
 func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
 	vars := mux.Vars(r)
 
 	ID, err := uuid.Parse(vars["id"])
@@ -207,10 +179,12 @@ func (s *uploadService) decodeBody(r *http.Request, v interface{}) error {
 	if err := d.Decode(v); err != nil {
 		return err
 	}
+	log.Printf("BODY %+v", v)
 	return nil
 }
 
 func (s *uploadService) httpError(w http.ResponseWriter, code int) {
+	log.Println("ERROR", code)
 	http.Error(w, http.StatusText(code), code)
 }
 
@@ -226,4 +200,40 @@ func (s *uploadService) httpJSON(w http.ResponseWriter, v interface{}) {
 
 func (s *uploadService) healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+// task is an upload process that is cancelable
+type task struct {
+	req    uploadReq
+	ctx    context.Context
+	cancel context.CancelFunc
+	err    error
+}
+
+func (t *task) process(ID uuid.UUID) {
+	log.Println("TASK", ID, "started")
+	defer log.Printf("TASK %s finished: %+v", ID, t)
+	defer t.cancel()
+
+	bucketURI, err := formatURI(t.req.BucketURL)
+	if err != nil {
+		log.Println("TASK", ID, "Error occurred while read parsing bucket URI:", err)
+		t.err = err
+		return
+	}
+
+	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, t.req.SecretName)
+	if err != nil {
+		log.Println("TASK", ID, "openBucket:", err)
+		t.err = err
+		return
+	}
+
+	backupsDir := path.Join(t.req.BackupFolderPath, "hot-backup")
+	err = backup.UploadBackup(t.ctx, bucket, t.req.BucketURL, backupsDir, t.req.HazelcastCRName)
+	if err != nil {
+		log.Println("TASK", ID, "uploadBackup:", err)
+		t.err = err
+		return
+	}
 }
