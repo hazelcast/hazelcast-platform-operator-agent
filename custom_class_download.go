@@ -73,7 +73,7 @@ func downloadClassJars(ctx context.Context, src, dst, sn string) error {
 			return err
 		}
 		// naive validation, we only want jar files and no files under subfolders
-		if !strings.HasSuffix(obj.Key, ".jar") || strings.LastIndex(obj.Key, "/") > 0 {
+		if !strings.HasSuffix(obj.Key, ".jar") || path.Base(obj.Key) == obj.Key {
 			continue
 		}
 
