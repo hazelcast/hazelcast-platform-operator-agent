@@ -42,8 +42,13 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 		return subcommands.ExitFailure
 	}
 
+	bucket, err := formatURI(r.Bucket)
+	if err != nil {
+		return subcommands.ExitFailure
+	}
+
 	// run download process
-	if err := downloadClassJars(ctx, r.Bucket, r.Destination, r.SecretName); err != nil {
+	if err := downloadClassJars(ctx, bucket, r.Destination, r.SecretName); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
@@ -67,8 +72,8 @@ func downloadClassJars(ctx context.Context, src, dst, sn string) error {
 		if err != nil {
 			return err
 		}
-		// naive validation, we only want jar files
-		if !strings.HasSuffix(obj.Key, ".jar") {
+		// naive validation, we only want jar files and no files under subfolders
+		if !strings.HasSuffix(obj.Key, ".jar") || strings.LastIndex(obj.Key, "/") > 0 {
 			continue
 		}
 
