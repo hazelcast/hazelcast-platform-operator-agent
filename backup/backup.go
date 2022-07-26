@@ -23,7 +23,7 @@ import (
 
 var ErrEmptyBackupDir = errors.New("empty backup directory")
 
-func UploadBackup(ctx context.Context, bucket *blob.Bucket, bucketURL, backupsDir, prefix string) error {
+func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string) error {
 	backupSeqs, err := ioutil.ReadDir(backupsDir)
 	if err != nil {
 		return err

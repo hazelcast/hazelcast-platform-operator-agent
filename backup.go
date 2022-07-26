@@ -230,7 +230,7 @@ func (t *task) process(ID uuid.UUID) {
 	}
 
 	backupsDir := path.Join(t.req.BackupFolderPath, "hot-backup")
-	err = backup.UploadBackup(t.ctx, bucket, t.req.BucketURL, backupsDir, t.req.HazelcastCRName)
+	err = backup.UploadBackup(t.ctx, bucket, backupsDir, t.req.HazelcastCRName)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
 		t.err = err
