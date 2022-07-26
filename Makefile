@@ -8,3 +8,6 @@ docker-build:
 docker-push:
 	docker push ${IMG}
 
+.PHONY: test
+test:
+	go test -v ./...

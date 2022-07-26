@@ -84,7 +84,7 @@ func downloadClassJars(ctx context.Context, src, dst string, secretData map[stri
 			continue
 		}
 
-		if err := saveJar(ctx, bucket, obj.Key, dst); err != nil {
+		if err := saveFileFromBucket(ctx, bucket, obj.Key, dst); err != nil {
 			return err
 		}
 	}
@@ -92,7 +92,7 @@ func downloadClassJars(ctx context.Context, src, dst string, secretData map[stri
 	return nil
 }
 
-func saveJar(ctx context.Context, bucket *blob.Bucket, key, path string) error {
+func saveFileFromBucket(ctx context.Context, bucket *blob.Bucket, key, path string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err
