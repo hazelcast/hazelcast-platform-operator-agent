@@ -222,7 +222,14 @@ func (t *task) process(ID uuid.UUID) {
 		return
 	}
 
-	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, t.req.SecretName)
+	secretData, err := bucket.GetSecretData(t.ctx, t.req.SecretName)
+	if err != nil {
+		log.Println("TASK", ID, "Error occured while fetching secret", err)
+		t.err = err
+		return
+	}
+
+	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
 	if err != nil {
 		log.Println("TASK", ID, "openBucket:", err)
 		t.err = err
