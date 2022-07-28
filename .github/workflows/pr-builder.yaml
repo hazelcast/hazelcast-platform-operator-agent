@@ -19,15 +19,20 @@ concurrency:
 
 jobs:
   check_run:
+    name: Check if we should run PR builder
     if: >-
-    ( !cancelled()
-    && ((github.event_name == 'pull_request_target'
-          && github.event.action == 'labeled'
-          && github.event.label.name == 'safe-to-test'
-          && github.event.pull_request.head.repo.full_name != github.repository)
-        ||
-        (github.event_name == 'pull_request'
-          && github.event.pull_request.head.repo.full_name == github.repository)))
+      ( !cancelled()
+      && ((github.event_name == 'pull_request_target'
+            && github.event.action == 'labeled'
+            && github.event.label.name == 'safe-to-test'
+            && github.event.pull_request.head.repo.full_name != github.repository)
+          ||
+          (github.event_name == 'pull_request'
+            && github.event.pull_request.head.repo.full_name == github.repository)))
+    runs-on: ubuntu-20.04
+    steps:
+      - name: ok
+        run: echo ok
 
   linter:
     name: Run linters
