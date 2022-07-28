@@ -34,7 +34,7 @@ var (
 	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
 
 	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
-	dateRE = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}/")
+	dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/`)
 )
 
 type restoreCmd struct {
