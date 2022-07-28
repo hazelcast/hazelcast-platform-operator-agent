@@ -235,11 +235,11 @@ func saveFile(name string, info fs.FileInfo, src io.Reader) error {
 	return err
 }
 
-var errParseID = errors.New("Couldn't parse statefullset hostname")
+var errParseID = errors.New("Couldn't parse statefulset hostname")
 
 func parseID(hostname string) (int, error) {
 	parts := hostnameRE.FindAllStringSubmatch(hostname, -1)
-	if len(parts) != 1 && len(parts[0]) != 3 {
+	if parts == nil || (len(parts) != 1 && len(parts[0]) != 3) {
 		return 0, errParseID
 	}
 	return strconv.Atoi(parts[0][2])
