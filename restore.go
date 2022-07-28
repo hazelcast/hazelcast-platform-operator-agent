@@ -131,7 +131,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	}
 
 	log.Println("Restoring", key)
-	if err := saveGzip(ctx, bucket, key, dst); err != nil {
+	if err := saveTarGzip(ctx, bucket, key, dst); err != nil {
 		return err
 	}
 
@@ -190,7 +190,7 @@ func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 	return keys[id], nil
 }
 
-func saveGzip(ctx context.Context, bucket *blob.Bucket, key, target string) error {
+func saveTarGzip(ctx context.Context, bucket *blob.Bucket, key, target string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err

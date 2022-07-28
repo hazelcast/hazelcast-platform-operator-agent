@@ -25,4 +25,3 @@ lint-go: setup-linters
 
 setup-linters:
 	source hack/setup-linters.sh; get_linters ${LINTER_SETUP_DIR}
-	
