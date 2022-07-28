@@ -11,3 +11,18 @@ docker-push:
 .PHONY: test
 test:
 	go test -v ./...
+
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
+
+## LINTER
+lint: lint-go
+
+LINTER_SETUP_DIR=$(shell pwd)/lintbin
+LINTER_PATH="${LINTER_SETUP_DIR}/bin:${PATH}"
+lint-go: setup-linters
+	PATH=${LINTER_PATH} golangci-lint run
+
+setup-linters:
+	source hack/setup-linters.sh; get_linters ${LINTER_SETUP_DIR}
+	
