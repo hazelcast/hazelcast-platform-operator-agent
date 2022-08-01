@@ -106,7 +106,7 @@ func TestDownload(t *testing.T) {
 					require.Nil(t, err)
 					continue
 				}
-				_, err = CreateFile(file)
+				_, err = createFile(file)
 				require.Nil(t, err)
 			}
 
@@ -327,7 +327,7 @@ func createTarGzipFile(dir, baseDir, outPath string) error {
 	return backup.CreateTarGzip(outFile, dir, baseDir)
 }
 
-func CreateFile(filePath string) (*os.File, error) {
+func createFile(filePath string) (*os.File, error) {
 	err := os.MkdirAll(path.Dir(filePath), 0700)
 	if err != nil {
 		return nil, err
