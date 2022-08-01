@@ -43,13 +43,19 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 		return subcommands.ExitFailure
 	}
 
-	bucket, err := formatURI(r.Bucket)
+	bucketURI, err := formatURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
 
+	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
+	if err != nil {
+		log.Println("error fetching secret data", err)
+		return subcommands.ExitFailure
+	}
+
 	// run download process
-	if err := downloadClassJars(ctx, bucket, r.Destination, r.SecretName); err != nil {
+	if err := downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
@@ -57,8 +63,8 @@ func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _
 	return subcommands.ExitSuccess
 }
 
-func downloadClassJars(ctx context.Context, src, dst, sn string) error {
-	bucket, err := bucket.OpenBucket(ctx, src, sn)
+func downloadClassJars(ctx context.Context, src, dst string, secretData map[string][]byte) error {
+	bucket, err := bucket.OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
@@ -78,7 +84,7 @@ func downloadClassJars(ctx context.Context, src, dst, sn string) error {
 			continue
 		}
 
-		if err := saveJar(ctx, bucket, obj.Key, dst); err != nil {
+		if err := saveFileFromBucket(ctx, bucket, obj.Key, dst); err != nil {
 			return err
 		}
 	}
@@ -86,7 +92,7 @@ func downloadClassJars(ctx context.Context, src, dst, sn string) error {
 	return nil
 }
 
-func saveJar(ctx context.Context, bucket *blob.Bucket, key, path string) error {
+func saveFileFromBucket(ctx context.Context, bucket *blob.Bucket, key, path string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err

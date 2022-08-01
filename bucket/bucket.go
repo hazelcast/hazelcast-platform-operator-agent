@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 
 	"gocloud.dev/blob"
@@ -16,6 +15,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	_ "gocloud.dev/blob/fileblob"
 )
 
 // Blob storage types
@@ -49,12 +50,23 @@ const (
 	BucketDataAzureEnvStorageKey     = "AZURE_STORAGE_KEY"
 )
 
-func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket, error) {
-	provider, _, err := validateBucketURL(bucketURL)
-	if err != nil {
-		return nil, err
-	}
+func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]byte) (*blob.Bucket, error) {
+	switch {
+	case strings.HasPrefix(bucketURL, AWS):
+		return openAWS(ctx, bucketURL, secretData)
 
+	case strings.HasPrefix(bucketURL, GCP):
+		return openGCP(ctx, bucketURL, secretData)
+
+	case strings.HasPrefix(bucketURL, AZURE):
+		return openAZURE(ctx, bucketURL, secretData)
+
+	default:
+		return blob.OpenBucket(ctx, bucketURL)
+	}
+}
+
+func GetSecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -70,37 +82,11 @@ func OpenBucket(ctx context.Context, bucketURL, secretName string) (*blob.Bucket
 		return nil, err
 	}
 
-	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	secret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, sn, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-
-	switch provider {
-	case AWS:
-		return openAWS(ctx, bucketURL, secret.Data)
-
-	case GCP:
-		return openGCP(ctx, bucketURL, secret.Data)
-
-	case AZURE:
-		return openAZURE(ctx, bucketURL, secret.Data)
-
-	default:
-		return nil, fmt.Errorf("invalid bucket path")
-	}
-}
-
-func validateBucketURL(bucketURL string) (string, string, error) {
-	r, _ := regexp.Compile(fmt.Sprintf("^(%s|%s|%s)://(.+)$", AWS, GCP, AZURE))
-	if !r.MatchString(bucketURL) {
-		return "", "", fmt.Errorf("invalid BucketURL: %v", bucketURL)
-	}
-	subMatch := r.FindStringSubmatch(bucketURL)
-
-	provider := subMatch[1]
-	bucketName := strings.Split(subMatch[2], "?")[0]
-
-	return provider, bucketName, nil
+	return secret.Data, nil
 }
 
 func getNamespace() (string, error) {

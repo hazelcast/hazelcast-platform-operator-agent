@@ -1,0 +1,79 @@
+name: Pull Request
+on:
+  pull_request_target:
+    types:
+      - labeled
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check_run:
+    name: Check if we should run PR builder
+    if: >-
+      ( !cancelled()
+      && ((github.event_name == 'pull_request_target'
+            && github.event.action == 'labeled'
+            && github.event.label.name == 'safe-to-test'
+            && github.event.pull_request.head.repo.full_name != github.repository)
+          ||
+          (github.event_name == 'pull_request'
+            && github.event.pull_request.head.repo.full_name == github.repository)))
+    runs-on: ubuntu-20.04
+    steps:
+      - name: ok
+        run: echo ok
+
+  linter:
+    name: Run linters
+    needs: check_run
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.17"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3.1.0
+        if: ${{ !cancelled() }}
+        with:
+          args: --timeout 2m
+
+  unit-tests:
+    name: Run unit tests
+    needs: check_run
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.17"
+
+      - name: Cache Golang dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run unit tests
+        run: make test
+

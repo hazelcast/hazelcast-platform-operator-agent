@@ -34,7 +34,7 @@ var (
 	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
 
 	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
-	dateRE = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2}/")
+	dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/`)
 )
 
 type restoreCmd struct {
@@ -76,7 +76,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
-	bucket, err := formatURI(r.Bucket)
+	bucketURI, err := formatURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
@@ -94,22 +94,28 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
+	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
+	if err != nil {
+		log.Println("error fetching secret data", err)
+		return subcommands.ExitFailure
+	}
+
 	// run download process
-	if err := download(ctx, bucket, r.Destination, id, r.SecretName); err != nil {
+	if err := download(ctx, bucketURI, r.Destination, id, secretData); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
 
 	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("cleanup failed")
+		log.Println("lock creation failed.")
 		return subcommands.ExitFailure
 	}
 
 	return subcommands.ExitSuccess
 }
 
-func download(ctx context.Context, src, dst string, id int, sn string) error {
-	bucket, err := bucket.OpenBucket(ctx, src, sn)
+func download(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
+	bucket, err := bucket.OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
@@ -125,7 +131,7 @@ func download(ctx context.Context, src, dst string, id int, sn string) error {
 	}
 
 	log.Println("Restoring", key)
-	if err := save(ctx, bucket, key, dst); err != nil {
+	if err := saveTarGzip(ctx, bucket, key, dst); err != nil {
 		return err
 	}
 
@@ -184,7 +190,7 @@ func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 	return keys[id], nil
 }
 
-func save(ctx context.Context, bucket *blob.Bucket, key, target string) error {
+func saveTarGzip(ctx context.Context, bucket *blob.Bucket, key, target string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err

@@ -222,7 +222,14 @@ func (t *task) process(ID uuid.UUID) {
 		return
 	}
 
-	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, t.req.SecretName)
+	secretData, err := bucket.GetSecretData(t.ctx, t.req.SecretName)
+	if err != nil {
+		log.Println("TASK", ID, "Error occured while fetching secret", err)
+		t.err = err
+		return
+	}
+
+	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
 	if err != nil {
 		log.Println("TASK", ID, "openBucket:", err)
 		t.err = err
@@ -230,7 +237,7 @@ func (t *task) process(ID uuid.UUID) {
 	}
 
 	backupsDir := path.Join(t.req.BackupFolderPath, "hot-backup")
-	err = backup.UploadBackup(t.ctx, bucket, t.req.BucketURL, backupsDir, t.req.HazelcastCRName)
+	err = backup.UploadBackup(t.ctx, bucket, backupsDir, t.req.HazelcastCRName)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
 		t.err = err
