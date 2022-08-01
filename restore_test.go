@@ -273,6 +273,8 @@ func TestSaveFromTarGzip(t *testing.T) {
 				return
 			}
 			gotFiles, err := getDirFileList(path.Join(destDir, "tarBaseDir"))
+			require.Nil(t, err)
+
 			require.ElementsMatch(t, tt.files, gotFiles)
 
 		})
