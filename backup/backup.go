@@ -75,10 +75,10 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateTarGzip(w, backupDir, baseDir)
+	return CreateArchieve(w, backupDir, baseDir)
 }
 
-func CreateTarGzip(w io.Writer, dir, baseDir string) error {
+func CreateArchieve(w io.Writer, dir, baseDir string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 

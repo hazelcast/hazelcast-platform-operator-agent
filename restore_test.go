@@ -102,7 +102,7 @@ func TestDownload(t *testing.T) {
 			for _, key := range tt.keys {
 				file := path.Join(bucketPath, key)
 				if key == tt.want {
-					err = createTarGzipFile(tarGzFilesBaseDir, uuid, file)
+					err = createArchieveFile(tarGzFilesBaseDir, uuid, file)
 					require.Nil(t, err)
 					continue
 				}
@@ -223,7 +223,7 @@ func TestFind(t *testing.T) {
 	}
 }
 
-func TestSaveFromTarGzip(t *testing.T) {
+func TestSaveFromArchieve(t *testing.T) {
 	tests := []struct {
 		name    string
 		files   []file
@@ -257,7 +257,7 @@ func TestSaveFromTarGzip(t *testing.T) {
 			err = createFiles(tarFilesDir, tt.files)
 			require.Nil(t, err)
 
-			err = createTarGzipFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)
+			err = createArchieveFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)
 			require.Nil(t, err)
 
 			bucket, err := fileblob.OpenBucket(path.Dir(tarFilePath), nil)
@@ -267,14 +267,13 @@ func TestSaveFromTarGzip(t *testing.T) {
 			destDir := path.Join(tmpdir, "dest")
 			require.Nil(t, err)
 
-			err = saveFromTarGzip(ctx, bucket, tarName, destDir)
+			err = saveFromArchieve(ctx, bucket, tarName, destDir)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
 			}
 			gotFiles, err := getDirFileList(path.Join(destDir, "tarBaseDir"))
 			require.Nil(t, err)
-
 			require.ElementsMatch(t, tt.files, gotFiles)
 
 		})
@@ -313,7 +312,7 @@ func TestParseID(t *testing.T) {
 	}
 }
 
-func createTarGzipFile(dir, baseDir, outPath string) error {
+func createArchieveFile(dir, baseDir, outPath string) error {
 	err := os.MkdirAll(path.Dir(outPath), 0700)
 	if err != nil {
 		return err
@@ -324,7 +323,7 @@ func createTarGzipFile(dir, baseDir, outPath string) error {
 	}
 	defer outFile.Close()
 
-	return backup.CreateTarGzip(outFile, dir, baseDir)
+	return backup.CreateArchieve(outFile, dir, baseDir)
 }
 
 func createFile(filePath string) (*os.File, error) {
