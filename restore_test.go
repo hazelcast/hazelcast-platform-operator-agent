@@ -14,6 +14,22 @@ import (
 	"gocloud.dev/blob/memblob"
 )
 
+var exampleTarGzFiles = []file{
+	{"cluster", true},
+	{"cluster/cluster-state.txt", false},
+	{"cluster/cluster-version.txt", false},
+	{"cluster/partition-thread-count.bin", false},
+	{"configs", true},
+	{"s00", true},
+	{"s00/tombstone", true},
+	{"cluster/members.bin", false},
+	{"s00/tombstone/02", true},
+	{"s00/tombstone/02/0000000000000002.chunk", false},
+	{"s00/value", true},
+	{"s00/value/01", true},
+	{"s00/value/01/0000000000000001.chunk", false},
+}
+
 func TestDownload(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -77,25 +93,10 @@ func TestDownload(t *testing.T) {
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
-			tarGzFiles := []file{
-				{"cluster", true},
-				{"cluster/cluster-state.txt", false},
-				{"cluster/cluster-version.txt", false},
-				{"cluster/partition-thread-count.bin", false},
-				{"configs", true},
-				{"s00", true},
-				{"s00/tombstone", true},
-				{"cluster/members.bin", false},
-				{"s00/tombstone/02", true},
-				{"s00/tombstone/02/0000000000000002.chunk", false},
-				{"s00/value", true},
-				{"s00/value/01", true},
-				{"s00/value/01/0000000000000001.chunk", false},
-			}
 			uuid := "52cea3e3-7f6a-411f-8ab4-cb207c4d0f55"
 			tarGzFilesBaseDir := path.Join(tmpdir, uuid)
 
-			err = createFiles(tarGzFilesBaseDir, tarGzFiles)
+			err = createFiles(tarGzFilesBaseDir, exampleTarGzFiles)
 			require.Nil(t, err)
 
 			bucketPath := path.Join(tmpdir, "bucket")
