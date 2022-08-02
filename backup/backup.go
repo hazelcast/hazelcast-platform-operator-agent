@@ -75,13 +75,17 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
+	return CreateTarGzip(w, backupDir, baseDir)
+}
+
+func CreateTarGzip(w io.Writer, dir, baseDir string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 
 	t := tar.NewWriter(g)
 	defer t.Close()
 
-	return filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -92,7 +96,7 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 		}
 
 		// make sure files are relative to baseDir
-		header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, backupDir))
+		header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, dir))
 
 		if err := t.WriteHeader(header); err != nil {
 			return err

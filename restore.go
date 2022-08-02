@@ -131,7 +131,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	}
 
 	log.Println("Restoring", key)
-	if err := saveTarGzip(ctx, bucket, key, dst); err != nil {
+	if err := saveFromTarGzip(ctx, bucket, key, dst); err != nil {
 		return err
 	}
 
@@ -190,7 +190,7 @@ func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 	return keys[id], nil
 }
 
-func saveTarGzip(ctx context.Context, bucket *blob.Bucket, key, target string) error {
+func saveFromTarGzip(ctx context.Context, bucket *blob.Bucket, key, target string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err
@@ -235,11 +235,11 @@ func saveFile(name string, info fs.FileInfo, src io.Reader) error {
 	return err
 }
 
-var errParseID = errors.New("Couldn't parse statefullset hostname")
+var errParseID = errors.New("Couldn't parse statefulset hostname")
 
 func parseID(hostname string) (int, error) {
 	parts := hostnameRE.FindAllStringSubmatch(hostname, -1)
-	if len(parts) != 1 && len(parts[0]) != 3 {
+	if parts == nil || (len(parts) != 1 && len(parts[0]) != 3) {
 		return 0, errParseID
 	}
 	return strconv.Atoi(parts[0][2])
