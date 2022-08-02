@@ -127,6 +127,6 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	t := time.UnixMilli(timestamp)
+	t := time.UnixMilli(timestamp).UTC()
 	return t.Format("2006-01-02-15-04-05"), nil
 }
