@@ -14,6 +14,22 @@ import (
 	"gocloud.dev/blob/memblob"
 )
 
+var exampleTarGzFiles = []file{
+	{"cluster", true},
+	{"cluster/cluster-state.txt", false},
+	{"cluster/cluster-version.txt", false},
+	{"cluster/partition-thread-count.bin", false},
+	{"configs", true},
+	{"s00", true},
+	{"s00/tombstone", true},
+	{"cluster/members.bin", false},
+	{"s00/tombstone/02", true},
+	{"s00/tombstone/02/0000000000000002.chunk", false},
+	{"s00/value", true},
+	{"s00/value/01", true},
+	{"s00/value/01/0000000000000001.chunk", false},
+}
+
 func TestDownload(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -77,32 +93,17 @@ func TestDownload(t *testing.T) {
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
-			tarGzFiles := []file{
-				{"cluster", true},
-				{"cluster/cluster-state.txt", false},
-				{"cluster/cluster-version.txt", false},
-				{"cluster/partition-thread-count.bin", false},
-				{"configs", true},
-				{"s00", true},
-				{"s00/tombstone", true},
-				{"cluster/members.bin", false},
-				{"s00/tombstone/02", true},
-				{"s00/tombstone/02/0000000000000002.chunk", false},
-				{"s00/value", true},
-				{"s00/value/01", true},
-				{"s00/value/01/0000000000000001.chunk", false},
-			}
 			uuid := "52cea3e3-7f6a-411f-8ab4-cb207c4d0f55"
 			tarGzFilesBaseDir := path.Join(tmpdir, uuid)
 
-			err = createFiles(tarGzFilesBaseDir, tarGzFiles)
+			err = createFiles(tarGzFilesBaseDir, exampleTarGzFiles)
 			require.Nil(t, err)
 
 			bucketPath := path.Join(tmpdir, "bucket")
 			for _, key := range tt.keys {
 				file := path.Join(bucketPath, key)
 				if key == tt.want {
-					err = createTarGzipFile(tarGzFilesBaseDir, uuid, file)
+					err = createArchieveFile(tarGzFilesBaseDir, uuid, file)
 					require.Nil(t, err)
 					continue
 				}
@@ -223,7 +224,7 @@ func TestFind(t *testing.T) {
 	}
 }
 
-func TestSaveFromTarGzip(t *testing.T) {
+func TestSaveFromArchieve(t *testing.T) {
 	tests := []struct {
 		name    string
 		files   []file
@@ -257,7 +258,7 @@ func TestSaveFromTarGzip(t *testing.T) {
 			err = createFiles(tarFilesDir, tt.files)
 			require.Nil(t, err)
 
-			err = createTarGzipFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)
+			err = createArchieveFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)
 			require.Nil(t, err)
 
 			bucket, err := fileblob.OpenBucket(path.Dir(tarFilePath), nil)
@@ -267,14 +268,13 @@ func TestSaveFromTarGzip(t *testing.T) {
 			destDir := path.Join(tmpdir, "dest")
 			require.Nil(t, err)
 
-			err = saveFromTarGzip(ctx, bucket, tarName, destDir)
+			err = saveFromArchieve(ctx, bucket, tarName, destDir)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
 			}
 			gotFiles, err := getDirFileList(path.Join(destDir, "tarBaseDir"))
 			require.Nil(t, err)
-
 			require.ElementsMatch(t, tt.files, gotFiles)
 
 		})
@@ -313,7 +313,7 @@ func TestParseID(t *testing.T) {
 	}
 }
 
-func createTarGzipFile(dir, baseDir, outPath string) error {
+func createArchieveFile(dir, baseDir, outPath string) error {
 	err := os.MkdirAll(path.Dir(outPath), 0700)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func createTarGzipFile(dir, baseDir, outPath string) error {
 	}
 	defer outFile.Close()
 
-	return backup.CreateTarGzip(outFile, dir, baseDir)
+	return backup.CreateArchieve(outFile, dir, baseDir)
 }
 
 func createFile(filePath string) (*os.File, error) {

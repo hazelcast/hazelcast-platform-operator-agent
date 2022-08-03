@@ -41,12 +41,14 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 			return err
 		}
 
-		seq := convertHumanReadableFormat(s.Name())
+		seq, err := convertHumanReadableFormat(s.Name())
+		if err != nil {
+			return err
+		}
 
 		// iterate over <backup-dir>/backup-<backupSeq>/<UUID> dirs
 		for _, u := range backupUUIDs {
 			uuidDir := filepath.Join(seqDir, u.Name())
-
 			key := filepath.Join(prefix, seq, u.Name()+".tar.gz")
 
 			err := func() error {
@@ -75,10 +77,10 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateTarGzip(w, backupDir, baseDir)
+	return CreateArchieve(w, backupDir, baseDir)
 }
 
-func CreateTarGzip(w io.Writer, dir, baseDir string) error {
+func CreateArchieve(w io.Writer, dir, baseDir string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 
@@ -119,9 +121,12 @@ func CreateTarGzip(w io.Writer, dir, baseDir string) error {
 
 // convertHumanReadableFormat converts backup-sequenceID into human readable format.
 // backup-1643801670242 --> 2022-02-18-14-57-44
-func convertHumanReadableFormat(backupFolderName string) string {
+func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	epochString := strings.ReplaceAll(backupFolderName, "backup-", "")
-	timestamp, _ := strconv.ParseInt(epochString, 10, 64)
-	t := time.UnixMilli(timestamp)
-	return t.Format("2006-01-02-15-04-05")
+	timestamp, err := strconv.ParseInt(epochString, 10, 64)
+	if err != nil {
+		return "", err
+	}
+	t := time.UnixMilli(timestamp).UTC()
+	return t.Format("2006-01-02-15-04-05"), nil
 }
