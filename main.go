@@ -14,7 +14,7 @@ func main() {
 	subcommands.Register(subcommands.CommandsCommand(), "")
 	subcommands.Register(&backupCmd{}, "")
 	subcommands.Register(&restoreCmd{}, "")
-	subcommands.Register(&customClassDownloadCmd{}, "")
+	subcommands.Register(&userCodeDeploymentCmd{}, "")
 
 	flag.Parse()
 	ctx := context.Background()
