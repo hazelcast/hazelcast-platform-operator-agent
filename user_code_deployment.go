@@ -17,28 +17,28 @@ import (
 	"github.com/hazelcast/platform-operator-agent/bucket"
 )
 
-type customClassDownloadCmd struct {
-	Bucket      string `envconfig:"CCD_BUCKET"`
-	Destination string `envconfig:"CCD_DESTINATION"`
-	SecretName  string `envconfig:"CCD_SECRET_NAME"`
+type userCodeDeploymentCmd struct {
+	Bucket      string `envconfig:"UCD_BUCKET"`
+	Destination string `envconfig:"UCD_DESTINATION"`
+	SecretName  string `envconfig:"UCD_SECRET_NAME"`
 }
 
-func (*customClassDownloadCmd) Name() string     { return "custom-class-download" }
-func (*customClassDownloadCmd) Synopsis() string { return "Run Custom Class Download Agent" }
-func (*customClassDownloadCmd) Usage() string    { return "" }
+func (*userCodeDeploymentCmd) Name() string     { return "user-code-deployment" }
+func (*userCodeDeploymentCmd) Synopsis() string { return "Run User Code Deployment Agent" }
+func (*userCodeDeploymentCmd) Usage() string    { return "" }
 
-func (r *customClassDownloadCmd) SetFlags(f *flag.FlagSet) {
+func (r *userCodeDeploymentCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
-	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/customClass", "dst filesystem path")
+	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/bucket", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *customClassDownloadCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting ccd agent...")
+func (r *userCodeDeploymentCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	log.Println("Starting user code deployment agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("ccd", r); err != nil {
+	if err := envconfig.Process("ucd", r); err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
 	}

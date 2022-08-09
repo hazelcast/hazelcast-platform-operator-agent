@@ -7,13 +7,13 @@ The agent is implemented using [Go CDK](https://gocloud.dev/) for cloud provider
 
 The agent is used by Hazelcast Platform Operator for supporting multiple features. The features are: 
 
-- [Custom Class Download](#custom-class-download)
+- [User Code Deployment](#user-code-deployment)
 - [Restore](#restore)
 - [Backup](#backup)
 
-## Custom Class Download
+## User Code Deployment
 
-Agent downloads `jar` files from a specified bucket and puts it under destined path. Learn more about `ccd` command using the `--help` argument.
+Agent downloads `jar` files from a specified bucket and puts it under destined path. Learn more about `user-code-deployment` command using the `--help` argument.
 
 ## Restore
 
