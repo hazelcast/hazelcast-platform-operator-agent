@@ -98,17 +98,9 @@ jobs:
 
       - name: Update Agent Version At Platform Operator Source Code
         run: |
-          declare -a list_1=("./config/crd/bases/hazelcast.com_hazelcasts.yaml" "./bundle.yaml")
-          for file in ${list_1[@]}; do
-           sed -i "/repository:.*hazelcast\/platform-operator-agent/{n;s/version:.*/version: "${RELEASE_VERSION}"/;}" $file
-          done
-
-          declare -a list_2=("./config/crd/bases/hazelcast.com_hazelcasts.yaml" "./bundle.yaml")
-          for file in ${list_2[@]}; do
-           sed -i "/repository:.*docker.io\/hazelcast\/platform-operator-agent/{n;n;n;n;n;n;n;n;n;s/default:.*/default: "${RELEASE_VERSION}"/;}" $file
-          done
            sed -i "/Version of Hazelcast Platform Operator Agent.*/{n;s/default:.*/default:=\"${RELEASE_VERSION}\"/;}" ./api/v1alpha1/hazelcast_types.go
            sed -i "/platform-operator-agent/{s/version:.*/version: \"${RELEASE_VERSION}\"}/;}" ./api/v1alpha1/hazelcast_types.go
+           make generate-bundle-yaml
 
       - name: Commit And Push Changes
         run: |
@@ -116,7 +108,6 @@ jobs:
           git config user.name "devOpsHelm"
           BRANCH_NAME=platform-operator-agent-v${RELEASE_VERSION}
           git checkout -b $BRANCH_NAME
-          git pull origin main
 
           git add .
           git commit --signoff -m "Bump 'platform-operator-agent' image version to ${RELEASE_VERSION}"
