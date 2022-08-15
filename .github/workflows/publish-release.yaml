@@ -17,11 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set Up Golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.17'
-
       - name: Cache Golang Dependencies
         uses: actions/cache@v3
         with:
@@ -85,9 +80,57 @@ jobs:
         if: always() && steps.newBranch.outcome == 'success'
         run: git push origin --delete release/v${RELEASE_VERSION}
 
+  update_agent_version_in_operator_repo:
+    name: Update Version And Create a PR in 'hazelcast-platform-operator' Repository
+    needs: 'publish-release-image'
+    runs-on: ubuntu-latest
+    env:
+      REPO_OWNER: hazelcast
+      REPO_NAME: hazelcast-platform-operator
+      RELEASE_VERSION: ${{ github.event.inputs.RELEASE_VERSION }}
+    steps:
+      - name: Checkout to hazelcast-platform-operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}
+          ref: main
+          token: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+
+      - name: Update Agent Version At Platform Operator Source Code
+        run: |
+          declare -a list_1=("./config/crd/bases/hazelcast.com_hazelcasts.yaml" "./bundle.yaml")
+          for file in ${list_1[@]}; do
+           sed -i "/repository:.*hazelcast\/platform-operator-agent/{n;s/version:.*/version: "${RELEASE_VERSION}"/;}" $file
+          done
+
+          declare -a list_2=("./config/crd/bases/hazelcast.com_hazelcasts.yaml" "./bundle.yaml")
+          for file in ${list_2[@]}; do
+           sed -i "/repository:.*docker.io\/hazelcast\/platform-operator-agent/{n;n;n;n;n;n;n;n;n;s/default:.*/default: "${RELEASE_VERSION}"/;}" $file
+          done
+           sed -i "/Version of Hazelcast Platform Operator Agent.*/{n;s/default:.*/default:=\"${RELEASE_VERSION}\"/;}" ./api/v1alpha1/hazelcast_types.go
+           sed -i "/platform-operator-agent/{s/version:.*/version: \"${RELEASE_VERSION}\"}/;}" ./api/v1alpha1/hazelcast_types.go
+
+      - name: Commit And Push Changes
+        run: |
+          git config user.email "devopshelm@hazelcast.com"
+          git config user.name "devOpsHelm"
+          BRANCH_NAME=platform-operator-agent-v${RELEASE_VERSION}
+          git checkout -b $BRANCH_NAME
+          git pull origin main
+
+          git add .
+          git commit --signoff -m "Bump 'platform-operator-agent' image version to ${RELEASE_VERSION}"
+          git push -u origin $BRANCH_NAME
+
+      - name: Create a PR
+        run: |
+          echo ${{ secrets.DEVOPS_GITHUB_TOKEN }} | gh auth login --with-token
+          gh pr create --title \
+          "Bump 'platform-operator-agent' image version to ${RELEASE_VERSION}" --body "" --repo ${REPO_OWNER}/${REPO_NAME} --reviewer hazelcast/cloud-native
+
   slack_notify:
     name: Slack Notify
-    needs: [ 'publish-release-image' ]
+    needs: [ 'publish-release-image','update_agent_version_in_operator_repo' ]
     if: always() &&  needs.publish-release-image.result != 'success'
     runs-on: ubuntu-latest
     steps:
