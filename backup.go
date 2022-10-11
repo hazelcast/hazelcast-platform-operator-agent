@@ -23,6 +23,10 @@ import (
 	"github.com/hazelcast/platform-operator-agent/bucket"
 )
 
+const (
+	backupDirName = "hot-backup"
+)
+
 type backupCmd struct {
 	HTTPAddress  string `envconfig:"BACKUP_HTTP_ADDRESS"`
 	HTTPSAddress string `envconfig:"BACKUP_HTTPS_ADDRESS"`
@@ -68,9 +72,13 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		tasks: make(map[uuid.UUID]*task),
 	}
 
+	bs := backupService{}
+
 	var g errgroup.Group
 	g.Go(func() error {
 		router := mux.NewRouter().StrictSlash(true)
+		router.HandleFunc("/backup", bs.backupHandler).Methods("GET")
+
 		router.HandleFunc("/upload", s.uploadHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", s.statusHandler).Methods("GET")
 		router.HandleFunc("/upload/{id}", s.cancelHandler).Methods("DELETE")
@@ -100,6 +108,64 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 	return subcommands.ExitSuccess
 }
 
+type backupService struct{}
+
+type backupRequest struct {
+	BackupBaseDir string `json:"backup_base_dir"`
+	MemberID      int    `json:"member_id"`
+}
+
+type backupResponse struct {
+	Backups []string `json:"backups"`
+}
+
+func (bs *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
+	var req backupRequest
+	if err := decodeBody(r, &req); err != nil {
+		log.Println("Error occurred while parsing body:", err)
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+
+	backupsDir := path.Join(req.BackupBaseDir, backupDirName)
+	backupSeqs, err := ioutil.ReadDir(backupsDir)
+	if err != nil {
+		log.Println("Error reading backup sequence directory", err)
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+	backupSeqs = backup.FilterBackupSequenceFolders(backupSeqs)
+
+	backups := []string{}
+	for _, backupSeq := range backupSeqs {
+		backupDir := path.Join(backupsDir, backupSeq.Name())
+		backupUUIDs, err := ioutil.ReadDir(backupDir)
+		if err != nil {
+			log.Println("Error reading backup directory", err)
+			httpError(w, http.StatusBadRequest)
+			return
+		}
+
+		backupUUIDs = backup.FilterBackupUUIDFolders(backupUUIDs)
+
+		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
+			httpError(w, http.StatusBadRequest)
+			return
+		}
+
+		// If there is only one backup, members are isolated. No need for memberID
+		if len(backupUUIDs) == 1 {
+			req.MemberID = 0
+		}
+
+		backups = append(backups, path.Join(backupSeq.Name(), backupUUIDs[req.MemberID].Name()))
+	}
+
+	httpJSON(w, backupResponse{Backups: backups})
+}
+
 // uploadService handles requests and keeps track of tasks
 type uploadService struct {
 	mu    sync.RWMutex
@@ -121,16 +187,16 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req uploadReq
-	if err := s.decodeBody(r, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		log.Println("Error occurred while parsing body:", err)
-		s.httpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
 		log.Println("Error occurred while genereting new UUID:", err)
-		s.httpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -148,7 +214,7 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// run upload in background
 	go t.process(ID)
 
-	s.httpJSON(w, uploadResp{ID: ID})
+	httpJSON(w, uploadResp{ID: ID})
 }
 
 type statusResp struct {
@@ -169,7 +235,7 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		s.httpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -179,29 +245,29 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// unknown task
 	if !ok {
-		s.httpError(w, http.StatusNotFound)
+		httpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
-		s.httpJSON(w, inProgressResp)
+		httpJSON(w, inProgressResp)
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
-		s.httpJSON(w, canceledResp)
+		httpJSON(w, canceledResp)
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
-		s.httpJSON(w, failureResp)
+		httpJSON(w, failureResp)
 		return
 	}
 
-	s.httpJSON(w, successResp)
+	httpJSON(w, successResp)
 }
 
 func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +277,7 @@ func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		s.httpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -219,7 +285,7 @@ func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.tasks[ID]
 	s.mu.RUnlock()
 	if !ok {
-		s.httpError(w, http.StatusNotFound)
+		httpError(w, http.StatusNotFound)
 		return
 	}
 
@@ -227,7 +293,7 @@ func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t.cancel()
 }
 
-func (s *uploadService) decodeBody(r *http.Request, v interface{}) error {
+func decodeBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	d := json.NewDecoder(r.Body)
 	if err := d.Decode(v); err != nil {
@@ -237,17 +303,17 @@ func (s *uploadService) decodeBody(r *http.Request, v interface{}) error {
 	return nil
 }
 
-func (s *uploadService) httpError(w http.ResponseWriter, code int) {
+func httpError(w http.ResponseWriter, code int) {
 	log.Println("ERROR", code)
 	http.Error(w, http.StatusText(code), code)
 }
 
-func (s *uploadService) httpJSON(w http.ResponseWriter, v interface{}) {
+func httpJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")
 	if err := e.Encode(v); err != nil {
-		s.httpError(w, http.StatusInternalServerError)
+		httpError(w, http.StatusInternalServerError)
 		return
 	}
 }

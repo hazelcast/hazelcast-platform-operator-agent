@@ -96,7 +96,7 @@ func TestDownload(t *testing.T) {
 			uuid := "52cea3e3-7f6a-411f-8ab4-cb207c4d0f55"
 			tarGzFilesBaseDir := path.Join(tmpdir, uuid)
 
-			err = createFiles(tarGzFilesBaseDir, exampleTarGzFiles)
+			err = createFiles(tarGzFilesBaseDir, exampleTarGzFiles, true)
 			require.Nil(t, err)
 
 			bucketPath := path.Join(tmpdir, "bucket")
@@ -255,7 +255,7 @@ func TestSaveFromArchieve(t *testing.T) {
 			tarName := "dest.tar.gz"
 			tarFilePath := path.Join(tmpdir, tarName)
 
-			err = createFiles(tarFilesDir, tt.files)
+			err = createFiles(tarFilesDir, tt.files, true)
 			require.Nil(t, err)
 
 			err = createArchieveFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)

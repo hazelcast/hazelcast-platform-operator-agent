@@ -21,6 +21,85 @@ import (
 	"gocloud.dev/blob/fileblob"
 )
 
+func TestBackupHandler(t *testing.T) {
+	tmpDir := func(name string) string {
+		file, err := ioutil.TempDir("", name)
+		require.Nil(t, err)
+		return file
+	}
+	tests := []struct {
+		name           string
+		body           backupRequest
+		files          []file
+		wantStatusCode int
+		want           []string
+	}{
+		{
+			"should work", backupRequest{
+				BackupBaseDir: tmpDir("working_path"),
+				MemberID:      1,
+			},
+			[]file{
+				{name: "backup-0000000000001", isDir: true},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000002", isDir: false},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000003", isDir: true},
+				{name: "backup-0000000000001/wrong-id", isDir: false},
+				{name: "backup-0000000000002", isDir: false},
+				{name: "backup-0000000000004", isDir: true},
+				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000002", isDir: true},
+				{name: "backup-0000000000003", isDir: true},
+				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000002", isDir: true},
+			},
+			http.StatusOK,
+			[]string{"backup-0000000000001/00000000-0000-0000-0000-000000000003", "backup-0000000000003/00000000-0000-0000-0000-000000000002", "backup-0000000000004/00000000-0000-0000-0000-000000000002"},
+		},
+		{
+			"should fail no backup dir exists", backupRequest{
+				BackupBaseDir: "does-not-exist",
+			},
+			nil,
+			http.StatusBadRequest,
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up
+			err := createFiles(path.Join(tt.body.BackupBaseDir, backupDirName), tt.files, false)
+			require.Nil(t, err)
+			defer os.RemoveAll(tt.body.BackupBaseDir)
+
+			bdy, err := json.Marshal(tt.body)
+			bdyStr := string(bdy)
+			require.Nil(t, err)
+			req := httptest.NewRequest(http.MethodPost, "http://request/backup", strings.NewReader(bdyStr))
+			w := httptest.NewRecorder()
+			bs := backupService{}
+
+			// Test
+			bs.backupHandler(w, req)
+			res := w.Result()
+			st := res.StatusCode
+			require.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
+			if st != http.StatusOK {
+				return
+			}
+
+			// Request was successful
+			resBody := &backupResponse{}
+			defer res.Body.Close()
+			d := json.NewDecoder(res.Body)
+			err = d.Decode(resBody)
+			require.Nil(t, err)
+			require.Equal(t, tt.want, resBody.Backups)
+
+		})
+	}
+}
+
 func TestUploadHandler(t *testing.T) {
 	uq := &uploadReq{
 		BucketURL:        "",
@@ -340,7 +419,7 @@ func TestUploadBackup(t *testing.T) {
 
 			for _, id := range tt.keys {
 				idPath := path.Join(backupDir, id)
-				err = createFiles(idPath, exampleTarGzFiles)
+				err = createFiles(idPath, exampleTarGzFiles, true)
 				require.Nil(t, err)
 			}
 
@@ -410,7 +489,7 @@ func TestCreateArchieve(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzipFilesDir := path.Join(tmpdir, "tarGzipFilesDir")
-			err = createFiles(tarGzipFilesDir, tt.want)
+			err = createFiles(tarGzipFilesDir, tt.want, true)
 			require.Nil(t, err)
 
 			tarGzipFile, err := os.OpenFile(path.Join(tmpdir, "file.tar.gz"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0700)

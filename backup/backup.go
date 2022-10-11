@@ -21,7 +21,13 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
-var ErrEmptyBackupDir = errors.New("empty backup directory")
+var (
+	BackupSequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
+	BackupUUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
+
+	ErrEmptyBackupDir     = errors.New("empty backup directory")
+	ErrMemberIDOutOfIndex = errors.New("memberID is out of index for present backup folders")
+)
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string) error {
 	backupSeqs, err := ioutil.ReadDir(backupsDir)
@@ -129,4 +135,24 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	}
 	t := time.UnixMilli(timestamp).UTC()
 	return t.Format("2006-01-02-15-04-05"), nil
+}
+
+func FilterBackupUUIDFolders(fs []os.FileInfo) []os.FileInfo {
+	uuids := []os.FileInfo{}
+	for _, f := range fs {
+		if BackupUUIDRegex.MatchString(f.Name()) && f.IsDir() {
+			uuids = append(uuids, f)
+		}
+	}
+	return uuids
+}
+
+func FilterBackupSequenceFolders(fs []os.FileInfo) []os.FileInfo {
+	seqs := []os.FileInfo{}
+	for _, f := range fs {
+		if BackupSequenceRegex.MatchString(f.Name()) && f.IsDir() {
+			seqs = append(seqs, f)
+		}
+	}
+	return seqs
 }
