@@ -31,3 +31,29 @@ func TestBasicFormatURI(t *testing.T) {
 		})
 	}
 }
+
+func TestAddFolderKeyToURI(t *testing.T) {
+	tests := []struct {
+		name      string
+		commonURI string
+		path      string
+		want      string
+		wantErr   bool
+	}{
+		{"with folder", "gs://bucket-name", "prefix/seq1", "gs://bucket-name?prefix=prefix/seq1", false},
+		{"without prefix", "s3://bucket-name/hazelcast", "seq2", "s3://bucket-name?prefix=hazelcast/seq2", false},
+		{"with prefix", "s3://bucket-name?prefix=hazelcast/", "seq2", "s3://bucket-name?prefix=hazelcast/seq2", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := addFolderKeyToURI(tt.commonURI, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("addPrefix() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("addPrefix() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -173,10 +173,11 @@ type uploadService struct {
 }
 
 type uploadReq struct {
-	BucketURL        string `json:"bucket_url"`
-	BackupFolderPath string `json:"backup_folder_path"`
-	HazelcastCRName  string `json:"hz_cr_name"`
-	SecretName       string `json:"secret_name"`
+	BucketURL       string `json:"bucket_url"`
+	BackupBaseDir   string `json:"backup_base_dir"`
+	HazelcastCRName string `json:"hz_cr_name"`
+	SecretName      string `json:"secret_name"`
+	MemberID        int    `json:"member_id"`
 }
 
 type uploadResp struct {
@@ -218,7 +219,19 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type statusResp struct {
-	Status string `json:"status"`
+	Status    string `json:"status"`
+	Message   string `json:"message,omitempty"`
+	BackupKey string `json:"backup_key,omitempty"`
+}
+
+func (sp statusResp) withMessage(m string) statusResp {
+	sp.Message = m
+	return sp
+}
+
+func (sp statusResp) withBackupKey(bk string) statusResp {
+	sp.BackupKey = bk
+	return sp
 }
 
 var (
@@ -257,17 +270,17 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
-		httpJSON(w, canceledResp)
+		httpJSON(w, canceledResp.withMessage(t.err.Error()))
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
-		httpJSON(w, failureResp)
+		httpJSON(w, failureResp.withMessage(t.err.Error()))
 		return
 	}
 
-	httpJSON(w, successResp)
+	httpJSON(w, successResp.withBackupKey(t.backupKey))
 }
 
 func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
@@ -324,10 +337,11 @@ func (s *uploadService) healthcheckHandler(w http.ResponseWriter, _ *http.Reques
 
 // task is an upload process that is cancelable
 type task struct {
-	req    uploadReq
-	ctx    context.Context
-	cancel context.CancelFunc
-	err    error
+	req       uploadReq
+	ctx       context.Context
+	cancel    context.CancelFunc
+	backupKey string
+	err       error
 }
 
 func (t *task) process(ID uuid.UUID) {
@@ -356,11 +370,19 @@ func (t *task) process(ID uuid.UUID) {
 		return
 	}
 
-	backupsDir := path.Join(t.req.BackupFolderPath, "hot-backup")
-	err = backup.UploadBackup(t.ctx, bucket, backupsDir, t.req.HazelcastCRName)
+	backupsDir := path.Join(t.req.BackupBaseDir, backupDirName)
+	folderKey, err := backup.UploadBackup(t.ctx, bucket, backupsDir, t.req.HazelcastCRName, t.req.MemberID)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
 		t.err = err
 		return
 	}
+
+	backupKey, err := addFolderKeyToURI(bucketURI, folderKey)
+	if err != nil {
+		log.Println("TASK", ID, "uploadBackup:", err)
+		t.err = err
+		return
+	}
+	t.backupKey = backupKey
 }

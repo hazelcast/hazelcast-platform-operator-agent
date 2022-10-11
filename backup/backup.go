@@ -6,16 +6,17 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"gocloud.dev/blob"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/s3blob"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -29,53 +30,71 @@ var (
 	ErrMemberIDOutOfIndex = errors.New("memberID is out of index for present backup folders")
 )
 
-func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string) error {
+func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
 	backupSeqs, err := ioutil.ReadDir(backupsDir)
 	if err != nil {
-		return err
+		return "", err
 	}
+	backupSeqs = FilterBackupSequenceFolders(backupSeqs)
 
 	if len(backupSeqs) == 0 {
-		return ErrEmptyBackupDir
+		return "", ErrEmptyBackupDir
 	}
 
-	// iterate over <backup-dir>/backup-<backupSeq>/ dirs
-	for _, s := range backupSeqs {
-		seqDir := filepath.Join(backupsDir, s.Name())
-		backupUUIDs, err := ioutil.ReadDir(seqDir)
-		if err != nil {
-			return err
-		}
-
-		seq, err := convertHumanReadableFormat(s.Name())
-		if err != nil {
-			return err
-		}
-
-		// iterate over <backup-dir>/backup-<backupSeq>/<UUID> dirs
-		for _, u := range backupUUIDs {
-			uuidDir := filepath.Join(seqDir, u.Name())
-			key := filepath.Join(prefix, seq, u.Name()+".tar.gz")
-
-			err := func() error {
-				defer os.RemoveAll(uuidDir)
-				return uploadBackup(ctx, bucket, key, uuidDir, u.Name())
-			}()
-			if err != nil {
-				return err
-			}
-		}
-
-		// we finished uploading backups
-		if err := os.RemoveAll(seqDir); err != nil {
-			return err
-		}
+	// Get the latest <backup-dir>/backup-<backupSeq> dir, ReadDir returns sorted slice
+	latestSeq := backupSeqs[len(backupSeqs)-1]
+	latestSeqDir := filepath.Join(backupsDir, latestSeq.Name())
+	humanReadableSeq, err := convertHumanReadableFormat(latestSeq.Name())
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	backupUUIDS, err := ioutil.ReadDir(latestSeqDir)
+	if err != nil {
+		return "", err
+	}
+	backupUUIDS = FilterBackupUUIDFolders(backupUUIDS)
+
+	// If there are multiple backup UUIDs in the folder and memberID is out of index
+	if len(backupUUIDS) != 1 && len(backupUUIDS) <= memberID {
+		return "", ErrMemberIDOutOfIndex
+	}
+
+	// If there is only one backup, members are isolated. No need for memberID
+	if len(backupUUIDS) == 1 {
+		memberID = 0
+	}
+	uuid := backupUUIDS[memberID]
+	uuidDir := filepath.Join(latestSeqDir, uuid.Name())
+	key := filepath.Join(prefix, humanReadableSeq, uuid.Name()+".tar.gz")
+
+	err = func() error {
+		defer os.WriteFile(uuidDir+".delete", []byte{}, 0600)
+		return uploadBackup(ctx, bucket, key, uuidDir, uuid.Name())
+	}()
+	if err != nil {
+		return "", err
+	}
+
+	// we finished uploading backups, delete the sequence dir if all uuids are marked to be deleted
+	if allFilesMarkedToBeDeleted(backupUUIDS, latestSeqDir) {
+		os.RemoveAll(latestSeqDir)
+	}
+
+	return key, nil
 }
 
-func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, baseDir string) error {
+func allFilesMarkedToBeDeleted(files []fs.FileInfo, dir string) bool {
+	for _, file := range files {
+		dir := filepath.Join(dir, file.Name())
+		if _, err := os.Stat(dir + ".delete"); errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+	}
+	return true
+}
+
+func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, baseDirName string) error {
 	log.Println("Uploading", backupDir, name)
 	w, err := bucket.NewWriter(ctx, name, nil)
 	if err != nil {
@@ -83,10 +102,10 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateArchieve(w, backupDir, baseDir)
+	return CreateArchieve(w, backupDir, baseDirName)
 }
 
-func CreateArchieve(w io.Writer, dir, baseDir string) error {
+func CreateArchieve(w io.Writer, dir, baseDirName string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 
@@ -103,8 +122,8 @@ func CreateArchieve(w io.Writer, dir, baseDir string) error {
 			return err
 		}
 
-		// make sure files are relative to baseDir
-		header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, dir))
+		// make sure files are relative to baseDirName
+		header.Name = filepath.Join(baseDirName, strings.TrimPrefix(path, dir))
 
 		if err := t.WriteHeader(header); err != nil {
 			return err
