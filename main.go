@@ -15,6 +15,7 @@ func main() {
 	subcommands.Register(&backupCmd{}, "")
 	subcommands.Register(&restoreCmd{}, "")
 	subcommands.Register(&userCodeDeploymentCmd{}, "")
+	subcommands.Register(&restoreLocalCmd{}, "")
 
 	flag.Parse()
 	ctx := context.Background()

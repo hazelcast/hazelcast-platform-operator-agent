@@ -67,7 +67,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		log.Println("Invalid hostname, need to confrom to statefullset naming scheme")
+		log.Println("Invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
