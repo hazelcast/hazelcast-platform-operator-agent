@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -88,12 +89,6 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitSuccess
 	}
 
-	// cleanup destination directory
-	if err := removeAll(r.Destination); err != nil {
-		log.Println("cleanup failed", err)
-		return subcommands.ExitFailure
-	}
-
 	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
 	if err != nil {
 		log.Println("error fetching secret data", err)
@@ -128,6 +123,12 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	if key == "" {
 		// skip download
 		return nil
+	}
+
+	// cleanup hot-restart folder with the same id if present in the destination folder
+	backupUUID := strings.TrimSuffix(path.Base(key), ".tar.gz")
+	if err := os.RemoveAll(backupUUID); err != nil {
+		return err
 	}
 
 	log.Println("Restoring", key)
