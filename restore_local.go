@@ -112,6 +112,9 @@ func moveBackup(backupDir, destDir string, id int) error {
 
 func copyDir(source, destination string) error {
 	var err error = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		var out string = filepath.Join(destination, strings.TrimPrefix(path, source))
 
 		if info.IsDir() {
@@ -131,13 +134,17 @@ func copyDir(source, destination string) error {
 			}
 			defer fh.Close()
 
-			// make it the same
-			fh.Chmod(info.Mode())
+			// change file mode
+			err = fh.Chmod(info.Mode())
+			if err != nil {
+				return err
+			}
+
+			// copy content
 			_, err = io.Copy(fh, in)
 			return err
 		}()
 
-		// copy content
 		return err
 
 	})

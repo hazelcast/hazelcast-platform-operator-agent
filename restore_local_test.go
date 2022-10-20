@@ -88,7 +88,8 @@ func TestMoveBackup(t *testing.T) {
 			// create backupDir and add backup contents
 			backupDir, err := ioutil.TempDir(tmpdir, "backupDir")
 			require.Nil(t, err)
-			createFiles(backupDir, tt.keys, true)
+			err = createFiles(backupDir, tt.keys, true)
+			require.Nil(t, err)
 
 			// create backupDir and add backup contents
 			destDir, err := ioutil.TempDir(tmpdir, "destDir")

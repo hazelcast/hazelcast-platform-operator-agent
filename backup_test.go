@@ -491,10 +491,10 @@ func TestUploadBackup(t *testing.T) {
 
 			// check if only one tar exists in the bucket
 			it := bucket.List(nil)
-			obj, err := it.Next(nil)
+			obj, err := it.Next(ctx)
 			require.Nil(t, err)
 			require.Contains(t, obj.Key, path.Base(tt.want))
-			_, err = it.Next(nil)
+			_, err = it.Next(ctx)
 			require.True(t, err == io.EOF, "Error is", err)
 
 			// create tar.gz for the backup folder tt.keys[i]

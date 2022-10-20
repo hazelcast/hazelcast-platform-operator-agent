@@ -8,7 +8,6 @@ import (
 	"flag"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -246,15 +245,4 @@ func parseID(hostname string) (int, error) {
 		return 0, errParseID
 	}
 	return strconv.Atoi(parts[0][2])
-}
-
-func removeAll(path string) error {
-	names, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
-	for _, e := range names {
-		os.RemoveAll(filepath.Join(path, e.Name()))
-	}
-	return nil
 }

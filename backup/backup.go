@@ -68,10 +68,12 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 	uuidDir := filepath.Join(latestSeqDir, uuid.Name())
 	key := filepath.Join(prefix, humanReadableSeq, uuid.Name()+".tar.gz")
 
-	err = func() error {
-		defer os.WriteFile(uuidDir+".delete", []byte{}, 0600)
-		return uploadBackup(ctx, bucket, key, uuidDir, uuid.Name())
-	}()
+	err = uploadBackup(ctx, bucket, key, uuidDir, uuid.Name())
+	if err != nil {
+		return "", err
+	}
+
+	err = os.WriteFile(uuidDir+".delete", []byte{}, 0600)
 	if err != nil {
 		return "", err
 	}
