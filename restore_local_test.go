@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMoveBackup(t *testing.T) {
+func TestCopyBackup(t *testing.T) {
 	tests := []struct {
 		name     string
 		memberID int
@@ -96,7 +96,7 @@ func TestMoveBackup(t *testing.T) {
 			require.Nil(t, err)
 
 			//test
-			err = moveBackup(backupDir, destDir, tt.memberID)
+			err = copyBackup(backupDir, destDir, tt.memberID)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return

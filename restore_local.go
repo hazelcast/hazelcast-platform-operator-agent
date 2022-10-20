@@ -71,7 +71,7 @@ func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...int
 		return subcommands.ExitSuccess
 	}
 
-	err = moveBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupFolderName), r.BackupBaseDir, id)
+	err = copyBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
@@ -85,7 +85,7 @@ func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...int
 	return subcommands.ExitSuccess
 }
 
-func moveBackup(backupDir, destDir string, id int) error {
+func copyBackup(backupDir, destDir string, id int) error {
 	backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
 	if err != nil {
 		return err
