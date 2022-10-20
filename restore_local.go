@@ -67,7 +67,8 @@ func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...int
 	lock := filepath.Join(r.BackupBaseDir, restoreLocalLock+r.RestoreID)
 
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
-		// If restoreLocal lock exists exit silently
+		// If restoreLocal lock exists exit
+		log.Println("Restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
@@ -77,8 +78,11 @@ func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...int
 	}
 
 	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
+		log.Println("Lock file creation error", err)
 		return subcommands.ExitFailure
 	}
+
+	log.Println("Restore successful")
 	return subcommands.ExitSuccess
 }
 
