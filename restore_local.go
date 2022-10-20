@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -87,11 +86,10 @@ func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...int
 }
 
 func moveBackup(backupDir, destDir string, id int) error {
-	backupUUIDs, err := ioutil.ReadDir(backupDir)
+	backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
 	if err != nil {
 		return err
 	}
-	backupUUIDs = backup.FilterBackupUUIDFolders(backupUUIDs)
 
 	if len(backupUUIDs) != 1 && len(backupUUIDs) <= id {
 		return fmt.Errorf("Backup id is out of range")

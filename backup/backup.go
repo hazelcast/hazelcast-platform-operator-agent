@@ -31,11 +31,10 @@ var (
 )
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
-	backupSeqs, err := ioutil.ReadDir(backupsDir)
+	backupSeqs, err := GetBackupSequenceFolders(backupsDir)
 	if err != nil {
 		return "", err
 	}
-	backupSeqs = FilterBackupSequenceFolders(backupSeqs)
 
 	if len(backupSeqs) == 0 {
 		return "", ErrEmptyBackupDir
@@ -49,11 +48,10 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 		return "", err
 	}
 
-	backupUUIDS, err := ioutil.ReadDir(latestSeqDir)
+	backupUUIDS, err := GetBackupUUIDFolders(latestSeqDir)
 	if err != nil {
 		return "", err
 	}
-	backupUUIDS = FilterBackupUUIDFolders(backupUUIDS)
 
 	// If there are multiple backup UUIDs in the folder and memberID is out of index
 	if len(backupUUIDS) != 1 && len(backupUUIDS) <= memberID {
@@ -158,22 +156,30 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	return t.Format("2006-01-02-15-04-05"), nil
 }
 
-func FilterBackupUUIDFolders(fs []os.FileInfo) []os.FileInfo {
+func GetBackupUUIDFolders(dir string) ([]os.FileInfo, error) {
+	backupUUIDs, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	backupUUIDs = filterDirs(backupUUIDs, BackupUUIDRegex)
+	return backupUUIDs, nil
+}
+
+func GetBackupSequenceFolders(dir string) ([]os.FileInfo, error) {
+	backupSeqs, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	backupSeqs = filterDirs(backupSeqs, BackupSequenceRegex)
+	return backupSeqs, nil
+}
+
+func filterDirs(fs []os.FileInfo, regex *regexp.Regexp) []os.FileInfo {
 	uuids := []os.FileInfo{}
 	for _, f := range fs {
-		if BackupUUIDRegex.MatchString(f.Name()) && f.IsDir() {
+		if regex.MatchString(f.Name()) && f.IsDir() {
 			uuids = append(uuids, f)
 		}
 	}
 	return uuids
-}
-
-func FilterBackupSequenceFolders(fs []os.FileInfo) []os.FileInfo {
-	seqs := []os.FileInfo{}
-	for _, f := range fs {
-		if BackupSequenceRegex.MatchString(f.Name()) && f.IsDir() {
-			seqs = append(seqs, f)
-		}
-	}
-	return seqs
 }

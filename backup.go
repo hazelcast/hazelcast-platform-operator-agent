@@ -130,25 +130,22 @@ func (bs *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	backupsDir := path.Join(req.BackupBaseDir, backupDirName)
-	backupSeqs, err := ioutil.ReadDir(backupsDir)
+	backupSeqs, err := backup.GetBackupSequenceFolders(backupsDir)
 	if err != nil {
 		log.Println("Error reading backup sequence directory", err)
 		httpError(w, http.StatusBadRequest)
 		return
 	}
-	backupSeqs = backup.FilterBackupSequenceFolders(backupSeqs)
 
 	backups := []string{}
 	for _, backupSeq := range backupSeqs {
 		backupDir := path.Join(backupsDir, backupSeq.Name())
-		backupUUIDs, err := ioutil.ReadDir(backupDir)
+		backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
 		if err != nil {
 			log.Println("Error reading backup directory", err)
 			httpError(w, http.StatusBadRequest)
 			return
 		}
-
-		backupUUIDs = backup.FilterBackupUUIDFolders(backupUUIDs)
 
 		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
 			httpError(w, http.StatusBadRequest)
