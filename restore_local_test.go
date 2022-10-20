@@ -11,16 +11,20 @@ import (
 
 func TestCopyBackup(t *testing.T) {
 	tests := []struct {
-		name     string
-		memberID int
-		keys     []file
-		want     string
-		wantErr  bool
+		name        string
+		memberID    int
+		keys        []file
+		destUUIDs   []file
+		want        string
+		wantDeleted string
+		wantErr     bool
 	}{
 		{
 			"empty backup dir",
 			0,
 			[]file{},
+			[]file{},
+			"",
 			"",
 			true,
 		},
@@ -30,7 +34,11 @@ func TestCopyBackup(t *testing.T) {
 			[]file{
 				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
 			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+			},
 			"00000000-0000-0000-0000-000000000001",
+			"",
 			false,
 		},
 		{
@@ -39,7 +47,24 @@ func TestCopyBackup(t *testing.T) {
 			[]file{
 				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
 			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+			},
 			"00000000-0000-0000-0000-000000000001",
+			"",
+			false,
+		},
+		{
+			"single backup, backup and hot-restart uuids are different",
+			0,
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+			},
+			[]file{
+				{name: "00000000-0000-0000-0000-00000000000a", isDir: true},
+			},
+			"00000000-0000-0000-0000-000000000001",
+			"00000000-0000-0000-0000-00000000000a",
 			false,
 		},
 		{
@@ -49,6 +74,25 @@ func TestCopyBackup(t *testing.T) {
 				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
 				{name: "00000000-0000-0000-0000-000000000002", isDir: true},
 			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000002", isDir: true},
+			},
+			"",
+			"",
+			true,
+		},
+		{
+			"mismatching number of backup folders and dest backup folders",
+			0,
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000002", isDir: true},
+			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+			},
+			"",
 			"",
 			true,
 		},
@@ -61,7 +105,33 @@ func TestCopyBackup(t *testing.T) {
 				{name: "00000000-0000-0000-0000-000000000003", isDir: true},
 				{name: "00000000-0000-0000-0000-000000000004", isDir: true},
 			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000002", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000003", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000004", isDir: true},
+			},
 			"00000000-0000-0000-0000-000000000003",
+			"",
+			false,
+		},
+		{
+			"multiple backups, backup and hot-restart uuids are different",
+			2,
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000002", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000003", isDir: true},
+				{name: "00000000-0000-0000-0000-000000000004", isDir: true},
+			},
+			[]file{
+				{name: "00000000-0000-0000-0000-00000000000a", isDir: true},
+				{name: "00000000-0000-0000-0000-00000000000b", isDir: true},
+				{name: "00000000-0000-0000-0000-00000000000c", isDir: true},
+				{name: "00000000-0000-0000-0000-00000000000d", isDir: true},
+			},
+			"00000000-0000-0000-0000-000000000003",
+			"00000000-0000-0000-0000-00000000000c",
 			false,
 		},
 		{
@@ -74,7 +144,12 @@ func TestCopyBackup(t *testing.T) {
 				{name: "00000000-0000-0000-0000-000000000004", isDir: true},
 				{name: "abc", isDir: true},
 			},
+			[]file{
+				{name: "00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "00000000-0000-0000-0000-00000000000a", isDir: true},
+			},
 			"00000000-0000-0000-0000-000000000004",
+			"00000000-0000-0000-0000-00000000000a",
 			false,
 		},
 	}
@@ -94,6 +169,8 @@ func TestCopyBackup(t *testing.T) {
 			// create backupDir and add backup contents
 			destDir, err := ioutil.TempDir(tmpdir, "destDir")
 			require.Nil(t, err)
+			err = createFiles(destDir, tt.destUUIDs, true)
+			require.Nil(t, err)
 
 			//test
 			err = copyBackup(backupDir, destDir, tt.memberID)
@@ -102,6 +179,10 @@ func TestCopyBackup(t *testing.T) {
 				return
 			}
 			require.DirExists(t, path.Join(destDir, tt.want))
+			if tt.wantDeleted != "" {
+				require.NoDirExists(t, path.Join(destDir, tt.wantDeleted))
+			}
+
 		})
 	}
 }
