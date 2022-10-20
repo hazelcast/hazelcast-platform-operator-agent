@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/google/subcommands"
+	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
 	"gocloud.dev/blob"
@@ -117,19 +119,60 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	}
 	defer bucket.Close()
 
-	key, err := find(ctx, bucket, id)
+	// find keys, they are sorted
+	keys, err := find(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	if key == "" {
-		// skip download
-		return nil
+
+	if id >= len(keys) {
+		return fmt.Errorf("Member index %d is greater than number of archived backup files %d", id, len(keys))
 	}
 
-	// cleanup hot-restart folder with the same id if present in the destination folder
-	backupUUID := strings.TrimSuffix(path.Base(key), ".tar.gz")
-	if err := os.RemoveAll(path.Join(dst, backupUUID)); err != nil {
+	// find backup UUIDs, they are sorted
+	hotRestartUUIDs, err := backup.GetBackupUUIDFolders(dst)
+	if err != nil {
 		return err
+	}
+
+	var key string
+	var uuidToDelete string
+
+	switch lenUUIDs := len(hotRestartUUIDs); {
+	case lenUUIDs == 0:
+		key = keys[id]
+	case lenUUIDs == 1:
+		uuidToDelete = hotRestartUUIDs[0].Name()
+		// try to match the existing hot-restart folder with the backup folder
+		for _, bkey := range keys {
+			if strings.TrimSuffix(path.Base(bkey), ".tar.gz") == uuidToDelete {
+				key = bkey
+				break
+			}
+		}
+		// Assume user wants to restore from a completely different cluster
+		if key == "" {
+			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
+			key = keys[id]
+		}
+	// If there are multiple backups, members are not isolated
+	case lenUUIDs > 1:
+		if lenUUIDs != len(keys) {
+			return fmt.Errorf("Mismatching local hot-restart folder count %d and archieved backup file count %d", lenUUIDs, len(keys))
+		}
+		if strings.TrimSuffix(path.Base(keys[id]), ".tar.gz") != hotRestartUUIDs[id].Name() {
+			// Assume user wants to restore from a completely different cluster
+			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
+		}
+		key = keys[id]
+		uuidToDelete = hotRestartUUIDs[id].Name()
+	}
+
+	// cleanup hot-restart folder if present
+	if uuidToDelete != "" {
+		if err := os.RemoveAll(path.Join(dst, uuidToDelete)); err != nil {
+			return err
+		}
 	}
 
 	log.Println("Restoring", key)
@@ -140,7 +183,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	return nil
 }
 
-func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
+func find(ctx context.Context, bucket *blob.Bucket) ([]string, error) {
 	var keys []string
 	var latest string
 	iter := bucket.List(nil)
@@ -150,7 +193,7 @@ func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 			break
 		}
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// naive validation, we only want tgz files
@@ -181,15 +224,14 @@ func find(ctx context.Context, bucket *blob.Bucket, id int) (string, error) {
 		keys = l
 	}
 
-	if len(keys) == 0 || id > len(keys)-1 {
-		// skip download
-		return "", nil
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("There are no archived backup files in the bucket")
 	}
 
 	// to be extra safe we always sort the keys
 	sort.Strings(keys)
 
-	return keys[id], nil
+	return keys, nil
 }
 
 func saveFromArchieve(ctx context.Context, bucket *blob.Bucket, key, target string) error {

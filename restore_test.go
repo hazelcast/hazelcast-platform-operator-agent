@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/hazelcast/platform-operator-agent/backup"
@@ -32,56 +33,110 @@ var exampleTarGzFiles = []file{
 
 func TestDownload(t *testing.T) {
 	tests := []struct {
-		name    string
-		keys    []string
-		id      int
-		want    string
-		wantErr bool
+		name            string
+		keys            []string
+		uuids           []string
+		id              int
+		want            string
+		wantDeletedUUID string
+		wantErr         bool
 	}{
-		{"extension", []string{"foo"}, 0, "", false},
-		{"single", []string{"foo.tar.gz"}, 0, "foo.tar.gz", false},
-		{"id", []string{"a.tar.gz", "b.tar.gz"}, 1, "b.tar.gz", false},
-		{"overflow", []string{"foo.tar.gz"}, 99, "", false},
+		{"no .tar.gz in keys",
+			[]string{"00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"},
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"},
+			0, "", "", true},
+		{"index out of range",
+			[]string{"00000000-0000-0000-0000-000000000001.tar.gz", "00000000-0000-0000-0000-000000000002.tar.gz"},
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"},
+			2, "", "", true},
+		{"mixed keys",
+			[]string{"a.tar.gz", "b.tar", "c.tar.gz2", "d.tar.gz"},
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"},
+			1, "d.tar.gz", "00000000-0000-0000-0000-000000000002", false},
 		{
-			"single with date",
-			[]string{
-				"2006-01-02-15-04-01/a.tar.gz",
-			},
-			0,
-			"2006-01-02-15-04-01/a.tar.gz",
-			false,
-		},
-		{
-			"id with date",
+			"no uuid folder",
 			[]string{
 				"2006-01-02-15-04-01/a.tar.gz",
 				"2006-01-02-15-04-01/b.tar.gz",
 			},
-			1,
-			"2006-01-02-15-04-01/b.tar.gz",
+			[]string{"a", "b", "c"},
+			0,
+			"2006-01-02-15-04-01/a.tar.gz",
+			"",
 			false,
 		},
 		{
-			"latest",
+			"one uuid folder, key and uuid are equal",
+			[]string{
+				"2006-01-02-15-04-01/a.tar.gz",
+				"2007-01-02-15-04-01/00000000-0000-0000-0000-000000000001.tar.gz",
+			},
+			[]string{"a", "00000000-0000-0000-0000-000000000001"},
+			0,
+			"2007-01-02-15-04-01/00000000-0000-0000-0000-000000000001.tar.gz",
+			"",
+			false,
+		},
+		{
+			"one uuid folder, key and uuid are different",
+			[]string{
+				"2005-01-02-15-04-01/a.tar.gz",
+				"2006-01-02-15-04-01/a.tar.gz",
+				"2006-01-02-15-04-01/b.tar.gz",
+			},
+			[]string{"a", "00000000-0000-0000-0000-000000000001"},
+			1,
+			"2006-01-02-15-04-01/b.tar.gz",
+			"00000000-0000-0000-0000-000000000001",
+			false,
+		},
+		{
+			"multiple uuid folders, key and uuid are equal",
 			[]string{
 				"2006-01-02-15-04-01/foo.tar.gz",
 				"2006-01-02-15-04-02/foo.tar.gz",
-				"2022-06-13-00-00-00/foo.tar.gz",
+				"2022-06-13-00-00-00/00000000-0000-0000-0000-000000000001.tar.gz",
+				"2022-06-13-00-00-00/00000000-0000-0000-0000-000000000002.tar.gz",
+				"2022-06-13-00-00-00/00000000-0000-0000-0000-000000000003",
+				"2022-06-13-00-00-00/00000000-0000-0000-0000-000000000004.tar.gz",
 			},
-			0,
-			"2022-06-13-00-00-00/foo.tar.gz",
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-000000000004"},
+			2,
+			"2022-06-13-00-00-00/00000000-0000-0000-0000-000000000004.tar.gz",
+			"",
 			false,
 		},
 		{
-			"mixed",
+			"multiple uuid folders, key and uuid are different",
 			[]string{
-				"bar.tar.gz",
-				"foo/bar.tar.gz",
 				"2006-01-02-15-04-01/foo.tar.gz",
+				"2006-01-02-15-04-02/foo.tar.gz",
+				"2022-06-13-00-00-00/a.tar.gz",
+				"2022-06-13-00-00-00/b.tar",
+				"2022-06-13-00-00-00/c.tar.gz",
+				"2022-06-13-00-00-00/d.tar.gz",
 			},
-			0,
-			"2006-01-02-15-04-01/foo.tar.gz",
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-000000000003"},
+			1,
+			"2022-06-13-00-00-00/c.tar.gz",
+			"00000000-0000-0000-0000-000000000002",
 			false,
+		},
+		{
+			"multiple uuid folders, mismatching number of keys and uuids",
+			[]string{
+				"2006-01-02-15-04-01/foo.tar.gz",
+				"2006-01-02-15-04-02/foo.tar.gz",
+				"2022-06-13-00-00-00/a.tar.gz",
+				"2022-06-13-00-00-00/b.tar.gz",
+				"2022-06-13-00-00-00/c.tar.gz",
+				"2022-06-13-00-00-00/d.tar.gz",
+			},
+			[]string{"a", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-000000000003"},
+			0,
+			"",
+			"",
+			true,
 		},
 	}
 
@@ -89,25 +144,26 @@ func TestDownload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "download")
+			tmpdir, err := ioutil.TempDir("", "")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
-			uuid := "52cea3e3-7f6a-411f-8ab4-cb207c4d0f55"
-			tarGzFilesBaseDir := path.Join(tmpdir, uuid)
-
+			tarGzFilesBaseDir := path.Join(tmpdir, "archieve")
 			err = createFiles(tarGzFilesBaseDir, exampleTarGzFiles, true)
 			require.Nil(t, err)
 
+			dstPath := path.Join(tmpdir, "dest")
+			for _, uuid := range tt.uuids {
+				err = os.MkdirAll(path.Join(dstPath, uuid), 0700)
+				require.Nil(t, err)
+			}
+
+			wantUUID := strings.TrimSuffix(path.Base(tt.want), ".tar.gz")
 			bucketPath := path.Join(tmpdir, "bucket")
 			for _, key := range tt.keys {
 				file := path.Join(bucketPath, key)
-				if key == tt.want {
-					err = createArchieveFile(tarGzFilesBaseDir, uuid, file)
-					require.Nil(t, err)
-					continue
-				}
-				_, err = createFile(file)
+				uuid := strings.TrimSuffix(path.Base(key), ".tar.gz")
+				err = createArchieveFile(tarGzFilesBaseDir, uuid, file)
 				require.Nil(t, err)
 			}
 
@@ -116,7 +172,6 @@ func TestDownload(t *testing.T) {
 			defer bucket.Close()
 
 			// test
-			dstPath := path.Join(tmpdir, "dest")
 			err = download(ctx, "file://"+bucketPath, dstPath, tt.id, nil)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
@@ -128,11 +183,14 @@ func TestDownload(t *testing.T) {
 			wantTarGzFileList, err := getDirFileList(tarGzFilesBaseDir)
 			require.Nil(t, err)
 
-			gotFileList, err := getDirFileList(path.Join(dstPath, uuid))
+			gotFileList, err := getDirFileList(path.Join(dstPath, wantUUID))
 			require.Nil(t, err)
 
 			require.ElementsMatch(t, wantTarGzFileList, gotFileList)
 
+			if tt.wantDeletedUUID != "" {
+				require.NoDirExists(t, path.Join(dstPath, tt.wantDeletedUUID))
+			}
 		})
 	}
 
@@ -141,21 +199,20 @@ func TestFind(t *testing.T) {
 	tests := []struct {
 		name    string
 		keys    []string
-		id      int
-		want    string
+		want    []string
 		wantErr bool
 	}{
-		{"extension", []string{"foo"}, 0, "", false},
-		{"single", []string{"foo.tar.gz"}, 0, "foo.tar.gz", false},
-		{"id", []string{"a.tar.gz", "b.tar.gz"}, 1, "b.tar.gz", false},
-		{"overflow", []string{"foo.tar.gz"}, 99, "", false},
+		{"extension", []string{"foo"}, nil, true},
+		{"single", []string{"foo.tar.gz"}, []string{"foo.tar.gz"}, false},
+		{"id", []string{"a.tar.gz", "b.tar.gz"}, []string{"a.tar.gz", "b.tar.gz"}, false},
 		{
 			"single with date",
 			[]string{
 				"2006-01-02-15-04-01/a.tar.gz",
 			},
-			0,
-			"2006-01-02-15-04-01/a.tar.gz",
+			[]string{
+				"2006-01-02-15-04-01/a.tar.gz",
+			},
 			false,
 		},
 		{
@@ -164,8 +221,10 @@ func TestFind(t *testing.T) {
 				"2006-01-02-15-04-01/a.tar.gz",
 				"2006-01-02-15-04-01/b.tar.gz",
 			},
-			1,
-			"2006-01-02-15-04-01/b.tar.gz",
+			[]string{
+				"2006-01-02-15-04-01/a.tar.gz",
+				"2006-01-02-15-04-01/b.tar.gz",
+			},
 			false,
 		},
 		{
@@ -175,8 +234,9 @@ func TestFind(t *testing.T) {
 				"2006-01-02-15-04-02/foo.tar.gz",
 				"2022-06-13-00-00-00/foo.tar.gz",
 			},
-			0,
-			"2022-06-13-00-00-00/foo.tar.gz",
+			[]string{
+				"2022-06-13-00-00-00/foo.tar.gz",
+			},
 			false,
 		},
 		{
@@ -186,19 +246,19 @@ func TestFind(t *testing.T) {
 				"foo/bar.tar.gz",
 				"2006-01-02-15-04-01/foo.tar.gz",
 			},
-			0,
-			"2006-01-02-15-04-01/foo.tar.gz",
+			[]string{
+				"2006-01-02-15-04-01/foo.tar.gz",
+			},
 			false,
 		},
 		// {
-		// 	"top",
+		// 	"dates prefixed in different folders",
 		// 	[]string{
-		// 		"foo/2006-01-02-15-04-02/foo.tar.gz",
-		// 		"bar/2006-01-02-15-04-01/foo.tar.gz",
+		// 		"hz-cr1/2006-01-02-15-04-02/foo.tar.gz",
+		// 		"hz-cr2/2006-01-02-15-04-01/foo.tar.gz",
 		// 	},
-		// 	0,
-		// 	"",
-		// 	true,
+		// 	nil,
+		// 	false,
 		// },
 	}
 
@@ -214,7 +274,7 @@ func TestFind(t *testing.T) {
 			}
 
 			// test
-			got, err := find(ctx, bucket, tt.id)
+			got, err := find(ctx, bucket)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
