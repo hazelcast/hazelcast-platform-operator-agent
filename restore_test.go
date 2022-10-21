@@ -386,12 +386,3 @@ func createArchieveFile(dir, baseDir, outPath string) error {
 
 	return backup.CreateArchieve(outFile, dir, baseDir)
 }
-
-func createFile(filePath string) (*os.File, error) {
-	err := os.MkdirAll(path.Dir(filePath), 0700)
-	if err != nil {
-		return nil, err
-	}
-
-	return os.Create(filePath)
-}
