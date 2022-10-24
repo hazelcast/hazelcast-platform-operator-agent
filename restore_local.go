@@ -20,13 +20,11 @@ import (
 	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
-const restoreLocalLock = ".restore_local_lock."
-
 type restoreLocalCmd struct {
 	BackupFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
 	BackupBaseDir    string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname         string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
-	RestoreID        string `envconfig:"RESTORE_ID"`
+	RestoreID        string `envconfig:"RESTORE_LOCAL_ID"`
 }
 
 func (*restoreLocalCmd) Name() string     { return "restore_local" }
@@ -63,7 +61,7 @@ func (r *restoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...inter
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.BackupBaseDir, restoreLocalLock+r.RestoreID)
+	lock := filepath.Join(r.BackupBaseDir, lockFileName(r.RestoreID, id))
 
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
@@ -73,6 +71,11 @@ func (r *restoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...inter
 
 	err = copyBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
+		return subcommands.ExitFailure
+	}
+
+	if err := cleanupLocks(r.BackupBaseDir, id); err != nil {
+		log.Println("Error cleaning up locks", err)
 		return subcommands.ExitFailure
 	}
 
@@ -161,4 +164,8 @@ func copyDir(source, destination string) error {
 
 	})
 	return err
+}
+
+func lockFileName(restoreId string, memberId int) string {
+	return fmt.Sprintf(".%s.%s.%d", restoreLock, restoreId, memberId)
 }

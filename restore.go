@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -29,14 +30,16 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 )
 
-const restoreLock = ".restore_lock"
+const restoreLock = "restore_lock"
 
-var (
-	// StatefulSet hostname is always DSN RFC 1123 and number
+var ( // StatefulSet hostname is always DSN RFC 1123 and number
 	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
 
 	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
 	dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/`)
+
+	// lock file, e.g. .restore_lock.12345.12
+	lockRE = regexp.MustCompile(`^\.` + restoreLock + `\.[a-z0-9]*\.\d*$`)
 )
 
 type restoreCmd struct {
@@ -44,6 +47,7 @@ type restoreCmd struct {
 	Destination string `envconfig:"RESTORE_DESTINATION"`
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
 	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
+	RestoreID   string `envconfig:"RESTORE_ID"`
 }
 
 func (*restoreCmd) Name() string     { return "restore" }
@@ -83,7 +87,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.Destination, restoreLock)
+	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
@@ -100,6 +104,11 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	// run download process
 	if err := download(ctx, bucketURI, r.Destination, id, secretData); err != nil {
 		log.Println("download error", err)
+		return subcommands.ExitFailure
+	}
+
+	if err := cleanupLocks(r.Destination, id); err != nil {
+		log.Println("Error cleaning up locks", err)
 		return subcommands.ExitFailure
 	}
 
@@ -287,4 +296,37 @@ func parseID(hostname string) (int, error) {
 		return 0, errParseID
 	}
 	return strconv.Atoi(parts[0][2])
+}
+
+func cleanupLocks(folder string, id int) error {
+	locks, err := getLocks(folder)
+	if err != nil {
+		return err
+	}
+
+	for _, lock := range locks {
+		if strings.HasSuffix(lock.Name(), "."+strconv.Itoa(id)) {
+			err = os.Remove(path.Join(folder, lock.Name()))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func getLocks(dir string) ([]os.FileInfo, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	locks := []os.FileInfo{}
+	for _, file := range files {
+		if lockRE.MatchString(file.Name()) {
+			locks = append(locks, file)
+		}
+	}
+	return locks, nil
 }
