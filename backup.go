@@ -72,12 +72,10 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		tasks: make(map[uuid.UUID]*task),
 	}
 
-	bs := backupService{}
-
 	var g errgroup.Group
 	g.Go(func() error {
 		router := mux.NewRouter().StrictSlash(true)
-		router.HandleFunc("/backup", bs.backupHandler).Methods("GET")
+		router.HandleFunc("/backup", backupHandler).Methods("GET")
 
 		router.HandleFunc("/upload", s.uploadHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", s.statusHandler).Methods("GET")
@@ -108,8 +106,6 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 	return subcommands.ExitSuccess
 }
 
-type backupService struct{}
-
 type backupRequest struct {
 	BackupBaseDir string `json:"backup_base_dir"`
 	MemberID      int    `json:"member_id"`
@@ -119,7 +115,7 @@ type backupResponse struct {
 	Backups []string `json:"backups"`
 }
 
-func (bs *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
+func backupHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req backupRequest

@@ -78,10 +78,9 @@ func TestBackupHandler(t *testing.T) {
 			require.Nil(t, err)
 			req := httptest.NewRequest(http.MethodPost, "http://request/backup", strings.NewReader(bdyStr))
 			w := httptest.NewRecorder()
-			bs := backupService{}
 
 			// Test
-			bs.backupHandler(w, req)
+			backupHandler(w, req)
 			res := w.Result()
 			st := res.StatusCode
 			require.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
