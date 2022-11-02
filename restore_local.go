@@ -39,11 +39,11 @@ func (r *restoreLocalCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.BackupFolderName, "src", "", "src backup folder path")
 	f.StringVar(&r.BackupBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
-	f.StringVar(&r.BackupBaseDir, "restore-id", "", "Restore ID for which the lock will be created.")
+	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
 
 }
 
-func (r *restoreLocalCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *restoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restoreLocal agent...")
 
 	// overwrite config with environment variables
@@ -123,11 +123,11 @@ func copyBackup(backupDir, destDir string, id int) error {
 }
 
 func copyDir(source, destination string) error {
-	var err error = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+	var err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		var out string = filepath.Join(destination, strings.TrimPrefix(path, source))
+		var out = filepath.Join(destination, strings.TrimPrefix(path, source))
 
 		if info.IsDir() {
 			return os.Mkdir(filepath.Join(out), info.Mode())
