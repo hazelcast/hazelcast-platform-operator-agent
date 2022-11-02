@@ -116,13 +116,13 @@ func copyBackup(backupDir, destDir string, id int) error {
 		log.Printf("Hot-restart folder name %s and backup UUID folder are not the same %s", destBackupUUIDS[id].Name(), backupUUIDs[id].Name())
 	}
 
-	backup := backupUUIDs[id].Name()
+	bk := backupUUIDs[id].Name()
 	// Remove the hot-restart folder at the destination
 	err = os.RemoveAll(path.Join(destDir, destBackupUUIDS[id].Name()))
 	if err != nil {
 		return err
 	}
-	return copyDir(path.Join(backupDir, backup), path.Join(destDir, backup))
+	return copyDir(path.Join(backupDir, bk), path.Join(destDir, bk))
 }
 
 func copyDir(source, destination string) error {
