@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -21,12 +22,90 @@ import (
 	"gocloud.dev/blob/fileblob"
 )
 
+func TestBackupHandler(t *testing.T) {
+	tmpDir := func(name string) string {
+		file, err := ioutil.TempDir("", name)
+		require.Nil(t, err)
+		return file
+	}
+	tests := []struct {
+		name           string
+		body           backupRequest
+		files          []file
+		wantStatusCode int
+		want           []string
+	}{
+		{
+			"should work", backupRequest{
+				BackupBaseDir: tmpDir("working_path"),
+				MemberID:      1,
+			},
+			[]file{
+				{name: "backup-0000000000001", isDir: true},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000002", isDir: false},
+				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000003", isDir: true},
+				{name: "backup-0000000000001/wrong-id", isDir: false},
+				{name: "backup-0000000000002", isDir: false},
+				{name: "backup-0000000000004", isDir: true},
+				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000002", isDir: true},
+				{name: "backup-0000000000003", isDir: true},
+				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000001", isDir: true},
+				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000002", isDir: true},
+			},
+			http.StatusOK,
+			[]string{"backup-0000000000001/00000000-0000-0000-0000-000000000003", "backup-0000000000003/00000000-0000-0000-0000-000000000002", "backup-0000000000004/00000000-0000-0000-0000-000000000002"},
+		},
+		{
+			"should fail no backup dir exists", backupRequest{
+				BackupBaseDir: "does-not-exist",
+			},
+			nil,
+			http.StatusBadRequest,
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up
+			err := createFiles(path.Join(tt.body.BackupBaseDir, backupDirName), tt.files, false)
+			require.Nil(t, err)
+			defer os.RemoveAll(tt.body.BackupBaseDir)
+
+			bdy, err := json.Marshal(tt.body)
+			bdyStr := string(bdy)
+			require.Nil(t, err)
+			req := httptest.NewRequest(http.MethodPost, "http://request/backup", strings.NewReader(bdyStr))
+			w := httptest.NewRecorder()
+
+			// Test
+			backupHandler(w, req)
+			res := w.Result()
+			st := res.StatusCode
+			require.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
+			if st != http.StatusOK {
+				return
+			}
+
+			// Request was successful
+			resBody := &backupResponse{}
+			defer res.Body.Close()
+			d := json.NewDecoder(res.Body)
+			err = d.Decode(resBody)
+			require.Nil(t, err)
+			require.Equal(t, tt.want, resBody.Backups)
+
+		})
+	}
+}
+
 func TestUploadHandler(t *testing.T) {
 	uq := &uploadReq{
-		BucketURL:        "",
-		BackupFolderPath: "",
-		HazelcastCRName:  "",
-		SecretName:       "",
+		BucketURL:       "",
+		BackupBaseDir:   "",
+		HazelcastCRName: "",
+		SecretName:      "",
 	}
 	uqb, err := json.Marshal(uq)
 	uqStr := string(uqb)
@@ -150,7 +229,7 @@ func TestStatusHandler(t *testing.T) {
 			d := json.NewDecoder(res.Body)
 			err := d.Decode(status)
 			require.Nil(t, err)
-			require.Equal(t, *tt.wantResponse, *status)
+			require.Equal(t, tt.wantResponse.Status, status.Status)
 
 		})
 	}
@@ -262,67 +341,104 @@ func getSuccessfulTask(req uploadReq) *task {
 
 func TestUploadBackup(t *testing.T) {
 	tests := []struct {
-		name    string
-		keys    []string
-		want    []string
-		wantErr bool
+		name       string
+		memberID   int
+		keys       []string
+		want       string
+		wantBucket string
+		wantErr    bool
 	}{
 		{
 			"empty backup dir",
+			0,
 			[]string{},
-			nil,
+			"",
+			"",
 			true,
 		},
 		{
 			"sequence is not in correct form",
+			0,
 			[]string{
-				"backupp-1659034855438/id",
+				"backupp-1659034855438/00000000-0000-0000-0000-000000000001",
 			},
-			nil,
+			"",
+			"",
+			true,
+		},
+		{
+			"uuid is not in correct form ",
+			0,
+			[]string{
+				"backup-1659034855438/00000000-0000-0000-0000-1",
+			},
+			"",
+			"",
 			true,
 		},
 		{
 			"sequence is not in correct form2",
+			0,
 			[]string{
-				"backup-16abc855438/id",
+				"backup-16abc855438/00000000-0000-0000-0000-000000000001",
 			},
-			nil,
+			"",
+			"",
 			true,
 		},
 		{
 			"single backup sequence single backup",
+			0,
 			[]string{
-				"backup-1659034855438/id1",
+				"backup-1659034855438/00000000-0000-0000-0000-000000000001",
 			},
-			[]string{"2022-07-28-19-00-55/id1.tar.gz"},
+			"backup-1659034855438/00000000-0000-0000-0000-000000000001",
+			"2022-07-28-19-00-55/00000000-0000-0000-0000-000000000001.tar.gz",
 			false,
 		},
 		{
+			"member id is incorrect but isolated members",
+			4,
+			[]string{
+				"backup-1659035130065/00000000-0000-0000-0000-000000000002",
+			},
+			"backup-1659035130065/00000000-0000-0000-0000-000000000002",
+			"2022-07-28-19-05-30/00000000-0000-0000-0000-000000000002.tar.gz",
+			false,
+		},
+		{
+			"member ID is out of index error",
+			2,
+			[]string{
+				"backup-1659035130065/00000000-0000-0000-0000-000000000001",
+				"backup-1659035130065/00000000-0000-0000-0000-000000000002",
+			},
+			"",
+			"",
+			true,
+		},
+		{
 			"single backup sequence multiple backups",
+			1,
 			[]string{
-				"backup-1659034855438/id1",
-				"backup-1659035130065/id2",
+				"backup-1659035130065/00000000-0000-0000-0000-000000000001",
+				"backup-1659035130065/00000000-0000-0000-0000-000000000002",
 			},
-			[]string{
-				"2022-07-28-19-00-55/id1.tar.gz",
-				"2022-07-28-19-05-30/id2.tar.gz",
-			},
+			"backup-1659035130065/00000000-0000-0000-0000-000000000002",
+			"2022-07-28-19-05-30/00000000-0000-0000-0000-000000000002.tar.gz",
 			false,
 		},
 		{
 			"multiple backup sequence multiple backups",
+			0,
 			[]string{
-				"backup-1659034855438/id1",
-				"backup-1659035130065/id2",
-				"backup-1659035448800/id3",
-				"backup-1659035448800/id4",
+				"backup-1659034855438/00000000-0000-0000-0000-000000000001",
+				"backup-1659035130065/00000000-0000-0000-0000-000000000002",
+				"backup-1659035448800/00000000-0000-0000-0000-000000000003",
+				"backup-1659035448800/00000000-0000-0000-0000-000000000004",
 			},
-			[]string{
-				"2022-07-28-19-00-55/id1.tar.gz",
-				"2022-07-28-19-05-30/id2.tar.gz",
-				"2022-07-28-19-10-48/id3.tar.gz",
-				"2022-07-28-19-10-48/id4.tar.gz",
-			},
+			"backup-1659035448800/00000000-0000-0000-0000-000000000003",
+			"2022-07-28-19-10-48/00000000-0000-0000-0000-000000000003.tar.gz",
 			false,
 		},
 	}
@@ -340,7 +456,7 @@ func TestUploadBackup(t *testing.T) {
 
 			for _, id := range tt.keys {
 				idPath := path.Join(backupDir, id)
-				err = createFiles(idPath, exampleTarGzFiles)
+				err = createFiles(idPath, exampleTarGzFiles, true)
 				require.Nil(t, err)
 			}
 
@@ -353,38 +469,44 @@ func TestUploadBackup(t *testing.T) {
 			// create bucket
 			bucketPath, err := ioutil.TempDir(tmpdir, "bucket")
 			require.Nil(t, err)
-
 			bucket, err := fileblob.OpenBucket(bucketPath, nil)
 			require.Nil(t, err)
 
-			prefix := "prefix"
-
 			// Run test
-			err = backup.UploadBackup(ctx, bucket, backupDir, prefix)
+			prefix := "prefix"
+			backupKey, err := backup.UploadBackup(ctx, bucket, backupDir, prefix, tt.memberID)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
 			}
+			require.Equal(t, path.Join(prefix, tt.wantBucket), backupKey)
 
-			for i, want := range tt.want {
-				// check if tar exists in the bucket
-				key := path.Join(prefix, want)
-				exists, err := bucket.Exists(ctx, key)
-				assert.Nil(t, err)
-				assert.True(t, exists, "Following item is not in the bucket ", want)
-
-				// create tar.gz for the backup folder tt.keys[i]
-				str := new(strings.Builder)
-				idPath := path.Join(backupDirCopy, tt.keys[i])
-				err = backup.CreateArchieve(str, idPath, path.Base(idPath))
-				assert.Nil(t, err)
-
-				// get the content of the tar in the bucket
-				content, err := bucket.ReadAll(ctx, key)
-				assert.Nil(t, err)
-
-				assert.Equal(t, str.String(), string(content))
+			// check if backup sequence is deleted or member backup is marked to be deleted
+			if countSubstring(tt.keys, path.Dir(tt.want)) <= 1 {
+				require.NoDirExists(t, path.Join(backupDir, path.Dir(tt.want)))
+			} else {
+				require.FileExists(t, path.Join(backupDir, tt.want+".delete"))
 			}
+
+			// check if only one tar exists in the bucket
+			it := bucket.List(nil)
+			obj, err := it.Next(ctx)
+			require.Nil(t, err)
+			require.Contains(t, obj.Key, path.Base(tt.want))
+			_, err = it.Next(ctx)
+			require.True(t, err == io.EOF, "Error is", err)
+
+			// create tar.gz for the backup folder tt.keys[i]
+			str := new(strings.Builder)
+			idPath := path.Join(backupDirCopy, tt.want)
+			err = backup.CreateArchieve(str, idPath, path.Base(idPath))
+			require.Nil(t, err)
+
+			// get the content of the tar in the bucket
+			content, err := bucket.ReadAll(ctx, backupKey)
+			require.Nil(t, err)
+
+			require.Equal(t, str.String(), string(content))
 		})
 	}
 }
@@ -410,7 +532,7 @@ func TestCreateArchieve(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzipFilesDir := path.Join(tmpdir, "tarGzipFilesDir")
-			err = createFiles(tarGzipFilesDir, tt.want)
+			err = createFiles(tarGzipFilesDir, tt.want, true)
 			require.Nil(t, err)
 
 			tarGzipFile, err := os.OpenFile(path.Join(tmpdir, "file.tar.gz"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0700)
@@ -446,4 +568,13 @@ func TestCreateArchieve(t *testing.T) {
 		})
 	}
 
+}
+
+func countSubstring(list []string, substr string) (count int) {
+	for _, str := range list {
+		if strings.Contains(str, substr) {
+			count++
+		}
+	}
+	return
 }

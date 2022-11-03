@@ -1,6 +1,9 @@
 package main
 
-import "net/url"
+import (
+	"net/url"
+	"path/filepath"
+)
 
 func formatURI(commonURI string) (uri string, err error) {
 	u, err := url.ParseRequestURI(commonURI)
@@ -43,4 +46,24 @@ func formatURI(commonURI string) (uri string, err error) {
 	}
 
 	return formated.String(), nil
+}
+
+func addFolderKeyToURI(commonURI, path string) (string, error) {
+	commonURI, err := formatURI(commonURI)
+	if err != nil {
+		return "", err
+	}
+
+	u, err := url.ParseRequestURI(commonURI)
+	if err != nil {
+		return "", err
+	}
+
+	values := u.Query()
+	values.Set("prefix", filepath.Join(values.Get("prefix"), path))
+	u.RawQuery, err = url.QueryUnescape(values.Encode())
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
 }

@@ -47,7 +47,7 @@ func TestDownloadClassJars(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			bucketPath := path.Join(tmpdir, "bucket")
-			err = createFiles(bucketPath, tt.files)
+			err = createFiles(bucketPath, tt.files, true)
 			require.Nil(t, err)
 
 			var dstPath string
@@ -117,11 +117,12 @@ func TestSaveFileFromBackup(t *testing.T) {
 	}
 }
 
-func createFiles(pth string, files []file) error {
-	// create pth dir regardless
-	err := os.MkdirAll(pth, 0700)
-	if err != nil {
-		return err
+func createFiles(pth string, files []file, createDir bool) error {
+	if createDir {
+		err := os.MkdirAll(pth, 0700)
+		if err != nil {
+			return err
+		}
 	}
 	for _, file := range files {
 		if file.isDir {
