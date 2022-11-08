@@ -32,7 +32,8 @@ import (
 
 const restoreLock = "restore_lock"
 
-var ( // StatefulSet hostname is always DSN RFC 1123 and number
+var (
+	// StatefulSet hostname is always DSN RFC 1123 and number
 	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
 
 	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
@@ -81,11 +82,13 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	if err != nil {
 		return subcommands.ExitFailure
 	}
+	log.Println("Restore agent ID:", id)
 
 	bucketURI, err := formatURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
+	log.Println("Bucket:", bucketURI)
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
@@ -95,6 +98,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitSuccess
 	}
 
+	log.Println("Reading secret:", r.SecretName)
 	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
 	if err != nil {
 		log.Println("error fetching secret data", err)
@@ -102,6 +106,7 @@ func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	// run download process
+	log.Println("Starting download:", r.Destination, id)
 	if err := download(ctx, bucketURI, r.Destination, id, secretData); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure

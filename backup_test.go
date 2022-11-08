@@ -69,6 +69,8 @@ func TestBackupHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
+			bs := &backupService{tasks: map[uuid.UUID]*task{}}
+
 			err := createFiles(path.Join(tt.body.BackupBaseDir, backupDirName), tt.files, false)
 			require.Nil(t, err)
 			defer os.RemoveAll(tt.body.BackupBaseDir)
@@ -80,7 +82,7 @@ func TestBackupHandler(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Test
-			backupHandler(w, req)
+			bs.backupHandler(w, req)
 			res := w.Result()
 			st := res.StatusCode
 			require.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
@@ -126,7 +128,7 @@ func TestUploadHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &uploadService{tasks: map[uuid.UUID]*task{}}
+			us := &backupService{tasks: map[uuid.UUID]*task{}}
 			req := httptest.NewRequest(http.MethodPost, "http://request/upload", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
@@ -159,55 +161,55 @@ func TestStatusHandler(t *testing.T) {
 		taskMap        map[uuid.UUID]*task
 		reqId          string
 		wantStatusCode int
-		wantResponse   *statusResp
+		wantStatus     string
 	}{
 		{
 			"should work",
 			map[uuid.UUID]*task{getUUIDFrom(""): getSuccessfulTask(uploadReq{})},
 			getUUIDFrom("").String(),
 			http.StatusOK,
-			nil,
+			"",
 		},
 		{
 			"uuid parse error",
 			map[uuid.UUID]*task{},
 			"incorrect-uuid",
 			http.StatusBadRequest,
-			nil,
+			"",
 		},
 		{
 			"task is not in map",
 			map[uuid.UUID]*task{},
 			getUUIDFrom("").String(),
 			http.StatusNotFound,
-			nil,
+			"",
 		},
 		{
 			"task is in progress",
 			map[uuid.UUID]*task{getUUIDFrom(""): getInProgressTask(uploadReq{})},
 			getUUIDFrom("").String(),
 			http.StatusOK,
-			&inProgressResp,
+			"IN_PROGRESS",
 		},
 		{
 			"task cancelled",
 			map[uuid.UUID]*task{getUUIDFrom(""): getCancelledTask(uploadReq{})},
 			getUUIDFrom("").String(),
 			http.StatusOK,
-			&canceledResp,
+			"CANCELED",
 		},
 		{
 			"task failed",
 			map[uuid.UUID]*task{getUUIDFrom(""): getFailedTask(uploadReq{})},
 			getUUIDFrom("").String(),
 			http.StatusOK,
-			&failureResp,
+			"FAILURE",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &uploadService{tasks: tt.taskMap}
+			us := &backupService{tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -221,7 +223,7 @@ func TestStatusHandler(t *testing.T) {
 			st := res.StatusCode
 			assert.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
 
-			if tt.wantResponse == nil {
+			if tt.wantStatus == "" {
 				return
 			}
 			status := &statusResp{}
@@ -229,7 +231,7 @@ func TestStatusHandler(t *testing.T) {
 			d := json.NewDecoder(res.Body)
 			err := d.Decode(status)
 			require.Nil(t, err)
-			require.Equal(t, tt.wantResponse.Status, status.Status)
+			require.Equal(t, tt.wantStatus, status.Status)
 
 		})
 	}
@@ -270,7 +272,7 @@ func TestCancelHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &uploadService{tasks: tt.taskMap}
+			us := &backupService{tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
