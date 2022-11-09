@@ -68,15 +68,14 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		return subcommands.ExitFailure
 	}
 
-	s := uploadService{
+	s := backupService{
 		tasks: make(map[uuid.UUID]*task),
 	}
 
 	var g errgroup.Group
 	g.Go(func() error {
 		router := mux.NewRouter().StrictSlash(true)
-		router.HandleFunc("/backup", backupHandler).Methods("GET")
-
+		router.HandleFunc("/backup", s.backupHandler).Methods("GET")
 		router.HandleFunc("/upload", s.uploadHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", s.statusHandler).Methods("GET")
 		router.HandleFunc("/upload/{id}", s.cancelHandler).Methods("DELETE")
@@ -106,6 +105,12 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 	return subcommands.ExitSuccess
 }
 
+// backupService handles requests and keeps track of tasks
+type backupService struct {
+	mu    sync.RWMutex
+	tasks map[uuid.UUID]*task
+}
+
 type backupRequest struct {
 	BackupBaseDir string `json:"backup_base_dir"`
 	MemberID      int    `json:"member_id"`
@@ -115,12 +120,12 @@ type backupResponse struct {
 	Backups []string `json:"backups"`
 }
 
-func backupHandler(w http.ResponseWriter, r *http.Request) {
+func (s *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req backupRequest
 	if err := decodeBody(r, &req); err != nil {
-		log.Println("Error occurred while parsing body:", err)
+		log.Println("BACKUP", "Error occurred while parsing body:", err)
 		httpError(w, http.StatusBadRequest)
 		return
 	}
@@ -128,7 +133,7 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 	backupsDir := path.Join(req.BackupBaseDir, backupDirName)
 	backupSeqs, err := backup.GetBackupSequenceFolders(backupsDir)
 	if err != nil {
-		log.Println("Error reading backup sequence directory", err)
+		log.Println("BACKUP", "Error reading backup sequence directory", err)
 		httpError(w, http.StatusBadRequest)
 		return
 	}
@@ -138,31 +143,30 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 		backupDir := path.Join(backupsDir, backupSeq.Name())
 		backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
 		if err != nil {
-			log.Println("Error reading backup directory", err)
+			log.Println("BACKUP", "Error reading backup directory", err)
 			httpError(w, http.StatusBadRequest)
 			return
 		}
 
 		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
+			log.Println("BACKUP", "Invalid UUID")
 			httpError(w, http.StatusBadRequest)
 			return
 		}
 
 		// If there is only one backup, members are isolated. No need for memberID
 		if len(backupUUIDs) == 1 {
+			log.Println("BACKUP", "Skip member ID")
 			req.MemberID = 0
 		}
 
-		backups = append(backups, path.Join(backupSeq.Name(), backupUUIDs[req.MemberID].Name()))
+		backupPath := path.Join(backupSeq.Name(), backupUUIDs[req.MemberID].Name())
+		backups = append(backups, backupPath)
+
+		log.Println("BACKUP", "Found backup", backupPath)
 	}
 
 	httpJSON(w, backupResponse{Backups: backups})
-}
-
-// uploadService handles requests and keeps track of tasks
-type uploadService struct {
-	mu    sync.RWMutex
-	tasks map[uuid.UUID]*task
 }
 
 type uploadReq struct {
@@ -177,19 +181,19 @@ type uploadResp struct {
 	ID uuid.UUID `json:"id"`
 }
 
-func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *backupService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req uploadReq
 	if err := decodeBody(r, &req); err != nil {
-		log.Println("Error occurred while parsing body:", err)
+		log.Println("UPLOAD", "Error occurred while parsing body:", err)
 		httpError(w, http.StatusBadRequest)
 		return
 	}
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
-		log.Println("Error occurred while genereting new UUID:", err)
+		log.Println("UPLOAD", "Error occurred while genereting new UUID:", err)
 		httpError(w, http.StatusBadRequest)
 		return
 	}
@@ -206,6 +210,7 @@ func (s *uploadService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	// run upload in background
+	log.Println("UPLOAD", ID, "Starting new task")
 	go t.process(ID)
 
 	httpJSON(w, uploadResp{ID: ID})
@@ -217,24 +222,7 @@ type statusResp struct {
 	BackupKey string `json:"backup_key,omitempty"`
 }
 
-func (sp statusResp) withMessage(m string) statusResp {
-	sp.Message = m
-	return sp
-}
-
-func (sp statusResp) withBackupKey(bk string) statusResp {
-	sp.BackupKey = bk
-	return sp
-}
-
-var (
-	inProgressResp = statusResp{Status: "IN_PROGRESS"}
-	canceledResp   = statusResp{Status: "CANCELED"}
-	failureResp    = statusResp{Status: "FAILURE"}
-	successResp    = statusResp{Status: "SUCCESS"}
-)
-
-func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
+func (s *backupService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	vars := mux.Vars(r)
@@ -251,32 +239,37 @@ func (s *uploadService) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// unknown task
 	if !ok {
+		log.Println("STATUS", ID, "Task not found")
 		httpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
-		httpJSON(w, inProgressResp)
+		log.Println("STATUS", ID, "Task in progress")
+		httpJSON(w, statusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
-		httpJSON(w, canceledResp.withMessage(t.err.Error()))
+		log.Println("STATUS", ID, "Task canceled")
+		httpJSON(w, statusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
-		httpJSON(w, failureResp.withMessage(t.err.Error()))
+		log.Println("STATUS", ID, "Task failed")
+		httpJSON(w, statusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
-	httpJSON(w, successResp.withBackupKey(t.backupKey))
+	log.Println("STATUS", ID, "Task successful")
+	httpJSON(w, statusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
-func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
+func (s *backupService) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	vars := mux.Vars(r)
@@ -291,11 +284,13 @@ func (s *uploadService) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.tasks[ID]
 	s.mu.RUnlock()
 	if !ok {
+		log.Println("CANCEL", ID, "Task not found")
 		httpError(w, http.StatusNotFound)
 		return
 	}
 
 	// send signal to stop task
+	log.Println("CANCEL", ID, "Canceling task")
 	t.cancel()
 }
 
@@ -324,7 +319,7 @@ func httpJSON(w http.ResponseWriter, v interface{}) {
 	}
 }
 
-func (s *uploadService) healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
+func (s *backupService) healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -344,10 +339,12 @@ func (t *task) process(ID uuid.UUID) {
 
 	bucketURI, err := formatURI(t.req.BucketURL)
 	if err != nil {
-		log.Println("TASK", ID, "Error occurred while read parsing bucket URI:", err)
+		log.Println("TASK", ID, "Error occurred while parsing bucket URI:", err)
 		t.err = err
 		return
 	}
+
+	log.Println("TASK", ID, "Parsed bucketURI:", bucketURI)
 
 	secretData, err := bucket.GetSecretData(t.ctx, t.req.SecretName)
 	if err != nil {
@@ -355,6 +352,8 @@ func (t *task) process(ID uuid.UUID) {
 		t.err = err
 		return
 	}
+
+	log.Println("TASK", ID, "Successfully read secret", t.req.SecretName)
 
 	bucket, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
 	if err != nil {
@@ -364,6 +363,8 @@ func (t *task) process(ID uuid.UUID) {
 	}
 
 	backupsDir := path.Join(t.req.BackupBaseDir, backupDirName)
+
+	log.Println("TASK", ID, "Staring backup upload:", backupsDir, t.req.MemberID)
 	folderKey, err := backup.UploadBackup(t.ctx, bucket, backupsDir, t.req.HazelcastCRName, t.req.MemberID)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
@@ -371,11 +372,14 @@ func (t *task) process(ID uuid.UUID) {
 		return
 	}
 
+	log.Println("TASK", ID, "Finished upload")
+
 	backupKey, err := addFolderKeyToURI(bucketURI, folderKey)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
 		t.err = err
 		return
 	}
+
 	t.backupKey = backupKey
 }

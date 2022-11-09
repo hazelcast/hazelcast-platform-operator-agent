@@ -47,7 +47,9 @@ func (r *userCodeDeploymentCmd) Execute(ctx context.Context, f *flag.FlagSet, _ 
 	if err != nil {
 		return subcommands.ExitFailure
 	}
+	log.Println("Bucket:", bucketURI)
 
+	log.Println("Reading secret:", r.SecretName)
 	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
 	if err != nil {
 		log.Println("error fetching secret data", err)
@@ -55,6 +57,7 @@ func (r *userCodeDeploymentCmd) Execute(ctx context.Context, f *flag.FlagSet, _ 
 	}
 
 	// run download process
+	log.Println("Starting download:", r.Destination)
 	if err := downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure

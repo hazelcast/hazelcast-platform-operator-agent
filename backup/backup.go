@@ -25,9 +25,11 @@ import (
 var (
 	BackupSequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
 	BackupUUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
+)
 
-	ErrEmptyBackupDir     = errors.New("empty backup directory")
-	ErrMemberIDOutOfIndex = errors.New("memberID is out of index for present backup folders")
+var (
+	ErrEmptyBackupDir     = errors.New("Empty backup directory")
+	ErrMemberIDOutOfIndex = errors.New("MemberID is out of index for present backup folders")
 )
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
