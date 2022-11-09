@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,7 +23,7 @@ import (
 
 func TestBackupHandler(t *testing.T) {
 	tmpDir := func(name string) string {
-		file, err := ioutil.TempDir("", name)
+		file, err := os.MkdirTemp("", name)
 		require.Nil(t, err)
 		return file
 	}
@@ -448,12 +447,12 @@ func TestUploadBackup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "upload_backup")
+			tmpdir, err := os.MkdirTemp("", "upload_backup")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
 			// create backupDir and add backup contents
-			backupDir, err := ioutil.TempDir(tmpdir, "backupDir")
+			backupDir, err := os.MkdirTemp(tmpdir, "backupDir")
 			require.Nil(t, err)
 
 			for _, id := range tt.keys {
@@ -469,7 +468,7 @@ func TestUploadBackup(t *testing.T) {
 			require.Nil(t, err)
 
 			// create bucket
-			bucketPath, err := ioutil.TempDir(tmpdir, "bucket")
+			bucketPath, err := os.MkdirTemp(tmpdir, "bucket")
 			require.Nil(t, err)
 			bucket, err := fileblob.OpenBucket(bucketPath, nil)
 			require.Nil(t, err)
@@ -529,7 +528,7 @@ func TestCreateArchieve(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "create_archieve")
+			tmpdir, err := os.MkdirTemp("", "create_archieve")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 

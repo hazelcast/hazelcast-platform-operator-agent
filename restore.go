@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -321,13 +320,13 @@ func cleanupLocks(folder string, id int) error {
 	return nil
 }
 
-func getLocks(dir string) ([]os.FileInfo, error) {
-	files, err := ioutil.ReadDir(dir)
+func getLocks(dir string) ([]os.DirEntry, error) {
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	locks := []os.FileInfo{}
+	locks := []os.DirEntry{}
 	for _, file := range files {
 		if lockRE.MatchString(file.Name()) {
 			locks = append(locks, file)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -42,7 +41,7 @@ func TestDownloadClassJars(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Prepare the buckets and destination folder
-			tmpdir, err := ioutil.TempDir("", "download_class_jars")
+			tmpdir, err := os.MkdirTemp("", "download_class_jars")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
@@ -52,7 +51,7 @@ func TestDownloadClassJars(t *testing.T) {
 
 			var dstPath string
 			if tt.dstPathExists {
-				dstPath, err = ioutil.TempDir(tmpdir, "dest")
+				dstPath, err = os.MkdirTemp(tmpdir, "dest")
 				require.Nil(t, err, "Destination Path could not be created")
 			} else {
 				dstPath = path.Join(tmpdir, "dest-does-not-exist")
@@ -85,7 +84,7 @@ func TestSaveFileFromBackup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			tmpdir, err := ioutil.TempDir("", "save_file_from_backup")
+			tmpdir, err := os.MkdirTemp("", "save_file_from_backup")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
@@ -96,7 +95,7 @@ func TestSaveFileFromBackup(t *testing.T) {
 
 			var dstPath string
 			if tt.dstPathExists {
-				dstPath, err = ioutil.TempDir(tmpdir, "dest")
+				dstPath, err = os.MkdirTemp(tmpdir, "dest")
 				require.Nil(t, err, "Destination Path could not be created")
 			} else {
 				dstPath = path.Join(tmpdir, "dest-does-not-exist")

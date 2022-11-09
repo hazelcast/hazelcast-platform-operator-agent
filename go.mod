@@ -1,6 +1,6 @@
 module github.com/hazelcast/platform-operator-agent
 
-go 1.17
+go 1.19
 
 require (
 	github.com/google/subcommands v1.0.1

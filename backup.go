@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"sync"
 
@@ -56,7 +56,7 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		return subcommands.ExitFailure
 	}
 
-	ca, err := ioutil.ReadFile(p.CA)
+	ca, err := os.ReadFile(p.CA)
 	if err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
