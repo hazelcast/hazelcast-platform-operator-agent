@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -17,24 +17,24 @@ import (
 	"github.com/hazelcast/platform-operator-agent/bucket"
 )
 
-type userCodeDeploymentCmd struct {
+type UserCodeDeploymentCmd struct {
 	Bucket      string `envconfig:"UCD_BUCKET"`
 	Destination string `envconfig:"UCD_DESTINATION"`
 	SecretName  string `envconfig:"UCD_SECRET_NAME"`
 }
 
-func (*userCodeDeploymentCmd) Name() string     { return "user-code-deployment" }
-func (*userCodeDeploymentCmd) Synopsis() string { return "Run User Code Deployment Agent" }
-func (*userCodeDeploymentCmd) Usage() string    { return "" }
+func (*UserCodeDeploymentCmd) Name() string     { return "user-code-deployment" }
+func (*UserCodeDeploymentCmd) Synopsis() string { return "Run User Code Deployment Agent" }
+func (*UserCodeDeploymentCmd) Usage() string    { return "" }
 
-func (r *userCodeDeploymentCmd) SetFlags(f *flag.FlagSet) {
+func (r *UserCodeDeploymentCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/bucket", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *userCodeDeploymentCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *UserCodeDeploymentCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting user code deployment agent...")
 
 	// overwrite config with environment variables

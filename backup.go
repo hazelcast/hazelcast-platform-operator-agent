@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -27,7 +27,7 @@ const (
 	backupDirName = "hot-backup"
 )
 
-type backupCmd struct {
+type BackupCmd struct {
 	HTTPAddress  string `envconfig:"BACKUP_HTTP_ADDRESS"`
 	HTTPSAddress string `envconfig:"BACKUP_HTTPS_ADDRESS"`
 	CA           string `envconfig:"BACKUP_CA"`
@@ -35,11 +35,11 @@ type backupCmd struct {
 	Key          string `envconfig:"BACKUP_KEY"`
 }
 
-func (*backupCmd) Name() string     { return "backup" }
-func (*backupCmd) Synopsis() string { return "run backup sidecar service" }
-func (*backupCmd) Usage() string    { return "" }
+func (*BackupCmd) Name() string     { return "backup" }
+func (*BackupCmd) Synopsis() string { return "run backup sidecar service" }
+func (*BackupCmd) Usage() string    { return "" }
 
-func (p *backupCmd) SetFlags(f *flag.FlagSet) {
+func (p *BackupCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.HTTPAddress, "http-address", ":8080", "http server listen address")
 	f.StringVar(&p.HTTPSAddress, "https-address", ":8443", "https server listen address")
 	f.StringVar(&p.CA, "ca", "ca.crt", "http server client ca")
@@ -47,7 +47,7 @@ func (p *backupCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.Key, "key", "tls.key", "http server tls key")
 }
 
-func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (p *BackupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting backup agent...")
 
 	// overwrite config with environment variables

@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"archive/tar"
@@ -42,7 +42,7 @@ var (
 	lockRE = regexp.MustCompile(`^\.` + restoreLock + `\.[a-z0-9]*\.\d*$`)
 )
 
-type restoreCmd struct {
+type RestoreCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
 	Destination string `envconfig:"RESTORE_DESTINATION"`
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
@@ -50,11 +50,11 @@ type restoreCmd struct {
 	RestoreID   string `envconfig:"RESTORE_ID"`
 }
 
-func (*restoreCmd) Name() string     { return "restore" }
-func (*restoreCmd) Synopsis() string { return "run restore agent" }
-func (*restoreCmd) Usage() string    { return "" }
+func (*RestoreCmd) Name() string     { return "restore" }
+func (*RestoreCmd) Synopsis() string { return "run restore agent" }
+func (*RestoreCmd) Usage() string    { return "" }
 
-func (r *restoreCmd) SetFlags(f *flag.FlagSet) {
+func (r *RestoreCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
@@ -63,7 +63,7 @@ func (r *restoreCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *restoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore agent...")
 
 	// overwrite config with environment variables

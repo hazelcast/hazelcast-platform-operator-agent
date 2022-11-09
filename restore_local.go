@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -20,18 +20,18 @@ import (
 	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
-type restoreLocalCmd struct {
+type RestoreLocalCmd struct {
 	BackupFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
 	BackupBaseDir    string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname         string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID        string `envconfig:"RESTORE_LOCAL_ID"`
 }
 
-func (*restoreLocalCmd) Name() string     { return "restore_local" }
-func (*restoreLocalCmd) Synopsis() string { return "run restore local agent" }
-func (*restoreLocalCmd) Usage() string    { return "" }
+func (*RestoreLocalCmd) Name() string     { return "restore_local" }
+func (*RestoreLocalCmd) Synopsis() string { return "run restore local agent" }
+func (*RestoreLocalCmd) Usage() string    { return "" }
 
-func (r *restoreLocalCmd) SetFlags(f *flag.FlagSet) {
+func (r *RestoreLocalCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
@@ -41,7 +41,7 @@ func (r *restoreLocalCmd) SetFlags(f *flag.FlagSet) {
 
 }
 
-func (r *restoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *RestoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restoreLocal agent...")
 
 	// overwrite config with environment variables
