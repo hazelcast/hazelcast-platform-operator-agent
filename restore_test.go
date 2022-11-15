@@ -1,8 +1,7 @@
-package main
+package agent
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -144,7 +143,7 @@ func TestDownload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "")
+			tmpdir, err := os.MkdirTemp("", "")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
@@ -307,7 +306,7 @@ func TestSaveFromArchieve(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "save_from_tar_gzip")
+			tmpdir, err := os.MkdirTemp("", "save_from_tar_gzip")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 

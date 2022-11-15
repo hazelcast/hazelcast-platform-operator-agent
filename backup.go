@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"sync"
 
@@ -27,7 +27,7 @@ const (
 	backupDirName = "hot-backup"
 )
 
-type backupCmd struct {
+type BackupCmd struct {
 	HTTPAddress  string `envconfig:"BACKUP_HTTP_ADDRESS"`
 	HTTPSAddress string `envconfig:"BACKUP_HTTPS_ADDRESS"`
 	CA           string `envconfig:"BACKUP_CA"`
@@ -35,11 +35,11 @@ type backupCmd struct {
 	Key          string `envconfig:"BACKUP_KEY"`
 }
 
-func (*backupCmd) Name() string     { return "backup" }
-func (*backupCmd) Synopsis() string { return "run backup sidecar service" }
-func (*backupCmd) Usage() string    { return "" }
+func (*BackupCmd) Name() string     { return "backup" }
+func (*BackupCmd) Synopsis() string { return "run backup sidecar service" }
+func (*BackupCmd) Usage() string    { return "" }
 
-func (p *backupCmd) SetFlags(f *flag.FlagSet) {
+func (p *BackupCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.HTTPAddress, "http-address", ":8080", "http server listen address")
 	f.StringVar(&p.HTTPSAddress, "https-address", ":8443", "https server listen address")
 	f.StringVar(&p.CA, "ca", "ca.crt", "http server client ca")
@@ -47,7 +47,7 @@ func (p *backupCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.Key, "key", "tls.key", "http server tls key")
 }
 
-func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (p *BackupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting backup agent...")
 
 	// overwrite config with environment variables
@@ -56,7 +56,7 @@ func (p *backupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		return subcommands.ExitFailure
 	}
 
-	ca, err := ioutil.ReadFile(p.CA)
+	ca, err := os.ReadFile(p.CA)
 	if err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
@@ -111,19 +111,21 @@ type backupService struct {
 	tasks map[uuid.UUID]*task
 }
 
-type backupRequest struct {
+// BackupReq is a backup service backup method request
+type BackupReq struct {
 	BackupBaseDir string `json:"backup_base_dir"`
 	MemberID      int    `json:"member_id"`
 }
 
-type backupResponse struct {
+// BackupResp is a backup service backup method response
+type BackupResp struct {
 	Backups []string `json:"backups"`
 }
 
 func (s *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
-	var req backupRequest
+	var req BackupReq
 	if err := decodeBody(r, &req); err != nil {
 		log.Println("BACKUP", "Error occurred while parsing body:", err)
 		httpError(w, http.StatusBadRequest)
@@ -166,10 +168,11 @@ func (s *backupService) backupHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("BACKUP", "Found backup", backupPath)
 	}
 
-	httpJSON(w, backupResponse{Backups: backups})
+	httpJSON(w, BackupResp{Backups: backups})
 }
 
-type uploadReq struct {
+// UploadReq is a backup service upload method request
+type UploadReq struct {
 	BucketURL       string `json:"bucket_url"`
 	BackupBaseDir   string `json:"backup_base_dir"`
 	HazelcastCRName string `json:"hz_cr_name"`
@@ -177,14 +180,15 @@ type uploadReq struct {
 	MemberID        int    `json:"member_id"`
 }
 
-type uploadResp struct {
+// UploadResp ia a backup service upload method response
+type UploadResp struct {
 	ID uuid.UUID `json:"id"`
 }
 
 func (s *backupService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
-	var req uploadReq
+	var req UploadReq
 	if err := decodeBody(r, &req); err != nil {
 		log.Println("UPLOAD", "Error occurred while parsing body:", err)
 		httpError(w, http.StatusBadRequest)
@@ -213,10 +217,11 @@ func (s *backupService) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("UPLOAD", ID, "Starting new task")
 	go t.process(ID)
 
-	httpJSON(w, uploadResp{ID: ID})
+	httpJSON(w, UploadResp{ID: ID})
 }
 
-type statusResp struct {
+// StatusResp is a backup service task status response
+type StatusResp struct {
 	Status    string `json:"status"`
 	Message   string `json:"message,omitempty"`
 	BackupKey string `json:"backup_key,omitempty"`
@@ -247,26 +252,26 @@ func (s *backupService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
 		log.Println("STATUS", ID, "Task in progress")
-		httpJSON(w, statusResp{Status: "IN_PROGRESS"})
+		httpJSON(w, StatusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
 		log.Println("STATUS", ID, "Task canceled")
-		httpJSON(w, statusResp{Status: "CANCELED", Message: t.err.Error()})
+		httpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
 		log.Println("STATUS", ID, "Task failed")
-		httpJSON(w, statusResp{Status: "FAILURE", Message: t.err.Error()})
+		httpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
 	log.Println("STATUS", ID, "Task successful")
-	httpJSON(w, statusResp{Status: "SUCCESS", BackupKey: t.backupKey})
+	httpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
 func (s *backupService) cancelHandler(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +330,7 @@ func (s *backupService) healthcheckHandler(w http.ResponseWriter, _ *http.Reques
 
 // task is an upload process that is cancelable
 type task struct {
-	req       uploadReq
+	req       UploadReq
 	ctx       context.Context
 	cancel    context.CancelFunc
 	backupKey string

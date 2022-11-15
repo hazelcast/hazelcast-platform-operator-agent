@@ -1,7 +1,6 @@
-package main
+package agent
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -156,18 +155,18 @@ func TestCopyBackup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := ioutil.TempDir("", "upload_backup")
+			tmpdir, err := os.MkdirTemp("", "upload_backup")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
 			// create backupDir and add backup contents
-			backupDir, err := ioutil.TempDir(tmpdir, "backupDir")
+			backupDir, err := os.MkdirTemp(tmpdir, "backupDir")
 			require.Nil(t, err)
 			err = createFiles(backupDir, tt.keys, true)
 			require.Nil(t, err)
 
 			// create backupDir and add backup contents
-			destDir, err := ioutil.TempDir(tmpdir, "destDir")
+			destDir, err := os.MkdirTemp(tmpdir, "destDir")
 			require.Nil(t, err)
 			err = createFiles(destDir, tt.destUUIDs, true)
 			require.Nil(t, err)

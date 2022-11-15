@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -86,7 +85,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 	return key, nil
 }
 
-func allFilesMarkedToBeDeleted(files []fs.FileInfo, dir string) bool {
+func allFilesMarkedToBeDeleted(files []fs.DirEntry, dir string) bool {
 	for _, file := range files {
 		dir := filepath.Join(dir, file.Name())
 		if _, err := os.Stat(dir + ".delete"); errors.Is(err, os.ErrNotExist) {
@@ -158,8 +157,8 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	return t.Format("2006-01-02-15-04-05"), nil
 }
 
-func GetBackupUUIDFolders(dir string) ([]os.FileInfo, error) {
-	backupUUIDs, err := ioutil.ReadDir(dir)
+func GetBackupUUIDFolders(dir string) ([]os.DirEntry, error) {
+	backupUUIDs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +166,8 @@ func GetBackupUUIDFolders(dir string) ([]os.FileInfo, error) {
 	return backupUUIDs, nil
 }
 
-func GetBackupSequenceFolders(dir string) ([]os.FileInfo, error) {
-	backupSeqs, err := ioutil.ReadDir(dir)
+func GetBackupSequenceFolders(dir string) ([]os.DirEntry, error) {
+	backupSeqs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -176,8 +175,8 @@ func GetBackupSequenceFolders(dir string) ([]os.FileInfo, error) {
 	return backupSeqs, nil
 }
 
-func filterDirs(fs []os.FileInfo, regex *regexp.Regexp) []os.FileInfo {
-	uuids := []os.FileInfo{}
+func filterDirs(fs []os.DirEntry, regex *regexp.Regexp) []os.DirEntry {
+	var uuids []os.DirEntry
 	for _, f := range fs {
 		if regex.MatchString(f.Name()) && f.IsDir() {
 			uuids = append(uuids, f)
