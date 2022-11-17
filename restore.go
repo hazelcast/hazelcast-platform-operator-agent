@@ -148,38 +148,27 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 		return err
 	}
 
-	var key string
 	var uuidToDelete string
-
 	switch lenUUIDs := len(hotRestartUUIDs); {
 	case lenUUIDs == 0:
-		key = keys[id]
 	case lenUUIDs == 1:
 		uuidToDelete = hotRestartUUIDs[0].Name()
-		// try to match the existing hot-restart folder with the backup folder
-		for _, bkey := range keys {
-			if strings.TrimSuffix(path.Base(bkey), ".tar.gz") == uuidToDelete {
-				key = bkey
-				break
-			}
-		}
-		// Assume user wants to restore from a completely different cluster
-		if key == "" {
-			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
-			key = keys[id]
+		uuidInBucket := strings.TrimSuffix(path.Base(keys[id]), ".tar.gz")
+		if uuidInBucket != uuidToDelete {
+			log.Printf("Restored backup UUID: %s is different from the local hot-restart folder UUID: %s!", uuidInBucket, uuidToDelete)
 		}
 	// If there are multiple backups, members are not isolated
 	case lenUUIDs > 1:
 		if lenUUIDs != len(keys) {
 			return fmt.Errorf("Mismatching local hot-restart folder count %d and archieved backup file count %d", lenUUIDs, len(keys))
 		}
-		if strings.TrimSuffix(path.Base(keys[id]), ".tar.gz") != hotRestartUUIDs[id].Name() {
-			// Assume user wants to restore from a completely different cluster
-			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
-		}
-		key = keys[id]
 		uuidToDelete = hotRestartUUIDs[id].Name()
+		uuidInBucket := strings.TrimSuffix(path.Base(keys[id]), ".tar.gz")
+		if uuidInBucket != uuidToDelete {
+			log.Printf("Restored backup UUID: %s is different from the local hot-restart folder UUID: %s!", uuidInBucket, uuidToDelete)
+		}
 	}
+	key := keys[id]
 
 	// cleanup hot-restart folder if present
 	if uuidToDelete != "" {
