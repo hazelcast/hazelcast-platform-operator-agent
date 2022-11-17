@@ -71,6 +71,7 @@ func (r *RestoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...inter
 
 	err = copyBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
+		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure
 	}
 
