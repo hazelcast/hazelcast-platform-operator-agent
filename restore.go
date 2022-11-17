@@ -183,6 +183,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 
 	// cleanup hot-restart folder if present
 	if uuidToDelete != "" {
+		log.Println("Deleting the hot-restart folder", uuidToDelete)
 		if err := os.RemoveAll(path.Join(dst, uuidToDelete)); err != nil {
 			return err
 		}
