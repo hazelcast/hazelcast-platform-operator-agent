@@ -20,32 +20,31 @@ import (
 	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
-type RestoreLocalCmd struct {
-	BackupFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
-	BackupBaseDir    string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
-	Hostname         string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
-	RestoreID        string `envconfig:"RESTORE_LOCAL_ID"`
+type RestoreLocalHostpathCmd struct {
+	BackupFolderName string `envconfig:"RESTORE_HOSTPATH_LOCAL_BACKUP_FOLDER_NAME"`
+	BackupBaseDir    string `envconfig:"RESTORE_HOSTPATH_LOCAL_BACKUP_BASE_DIR"`
+	Hostname         string `envconfig:"RESTORE_HOSTPATH_LOCAL_HOSTNAME"`
+	RestoreID        string `envconfig:"RESTORE_HOSTPATH_LOCAL_ID"`
 }
 
-func (*RestoreLocalCmd) Name() string     { return "restore_local" }
-func (*RestoreLocalCmd) Synopsis() string { return "run restore local agent" }
-func (*RestoreLocalCmd) Usage() string    { return "" }
+func (*RestoreLocalHostpathCmd) Name() string     { return "restore_hostpath_local" }
+func (*RestoreLocalHostpathCmd) Synopsis() string { return "run restore hostpath local agent" }
+func (*RestoreLocalHostpathCmd) Usage() string    { return "" }
 
-func (r *RestoreLocalCmd) SetFlags(f *flag.FlagSet) {
+func (r *RestoreLocalHostpathCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.BackupFolderName, "src", "", "src backup folder path")
 	f.StringVar(&r.BackupBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
 	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
-
 }
 
-func (r *RestoreLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting restoreLocal agent...")
+func (r *RestoreLocalHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	log.Println("Starting restore hostpath local agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("restoreLocal", r); err != nil {
+	if err := envconfig.Process("restoreHostpathLocal", r); err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
 	}

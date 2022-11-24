@@ -15,9 +15,10 @@ func main() {
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
 	subcommands.Register(&agent.BackupCmd{}, "")
-	subcommands.Register(&agent.RestoreCmd{}, "")
 	subcommands.Register(&agent.UserCodeDeploymentCmd{}, "")
-	subcommands.Register(&agent.RestoreLocalCmd{}, "")
+	subcommands.Register(&agent.RestoreCmd{}, "")
+	subcommands.Register(&agent.RestoreLocalHostpathCmd{}, "")
+	subcommands.Register(&agent.RestorePVCLocalCmd{}, "")
 
 	flag.Parse()
 	ctx := context.Background()
