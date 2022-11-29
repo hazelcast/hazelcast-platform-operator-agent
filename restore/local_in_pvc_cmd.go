@@ -1,4 +1,4 @@
-package agent
+package restore
 
 import (
 	"context"
@@ -17,18 +17,18 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 )
 
-type RestorePVCLocalCmd struct {
-	BackupSequenceFolderName string `envconfig:"RESTORE_PVC_LOCAL_BACKUP_FOLDER_NAME"`
-	BackupBaseDir            string `envconfig:"RESTORE_PVC_LOCAL_BACKUP_BASE_DIR"`
-	Hostname                 string `envconfig:"RESTORE_PVC_LOCAL_HOSTNAME"`
-	RestoreID                string `envconfig:"RESTORE_PVC_LOCAL_ID"`
+type LocalInPVCCmd struct {
+	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
+	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
+	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
+	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
 }
 
-func (*RestorePVCLocalCmd) Name() string     { return "restore_pvc_local" }
-func (*RestorePVCLocalCmd) Synopsis() string { return "run restore pvc local agent" }
-func (*RestorePVCLocalCmd) Usage() string    { return "" }
+func (*LocalInPVCCmd) Name() string     { return "restore_pvc_local" }
+func (*LocalInPVCCmd) Synopsis() string { return "run restore pvc local agent" }
+func (*LocalInPVCCmd) Usage() string    { return "" }
 
-func (r *RestorePVCLocalCmd) SetFlags(f *flag.FlagSet) {
+func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
@@ -37,11 +37,11 @@ func (r *RestorePVCLocalCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
 }
 
-func (r *RestorePVCLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore pvc local agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("restorePvcLocal", r); err != nil {
+	if err := envconfig.Process("restoreLocal", r); err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
 	}
@@ -65,7 +65,7 @@ func (r *RestorePVCLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupSequenceFolderName), r.BackupBaseDir, id)
+	err = copyBackupPVC(path.Join(r.BackupBaseDir, backup.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
 		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure
@@ -85,17 +85,17 @@ func (r *RestorePVCLocalCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 	return subcommands.ExitSuccess
 }
 
-func copyBackupPVC(backupDir, destDir string, id int) error {
-	backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
+func copyBackupPVC(backupDir, destDir string) error {
+	backupUUIDs, err := backup.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
 
 	if len(backupUUIDs) != 1 {
-		return fmt.Errorf("Incorrect number of backups %d in backup sequence folder ", len(backupUUIDs))
+		return fmt.Errorf("incorrect number of backups %d in backup sequence folder", len(backupUUIDs))
 	}
 
-	destBackupUUIDS, err := backup.GetBackupUUIDFolders(destDir)
+	destBackupUUIDS, err := backup.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

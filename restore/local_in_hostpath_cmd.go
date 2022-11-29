@@ -1,4 +1,4 @@
-package agent
+package restore
 
 import (
 	"context"
@@ -20,18 +20,18 @@ import (
 	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
-type RestoreLocalHostpathCmd struct {
-	BackupFolderName string `envconfig:"RESTORE_HOSTPATH_LOCAL_BACKUP_FOLDER_NAME"`
-	BackupBaseDir    string `envconfig:"RESTORE_HOSTPATH_LOCAL_BACKUP_BASE_DIR"`
-	Hostname         string `envconfig:"RESTORE_HOSTPATH_LOCAL_HOSTNAME"`
-	RestoreID        string `envconfig:"RESTORE_HOSTPATH_LOCAL_ID"`
+type LocalInHostpathCmd struct {
+	BackupFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
+	BackupBaseDir    string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
+	Hostname         string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
+	RestoreID        string `envconfig:"RESTORE_LOCAL_ID"`
 }
 
-func (*RestoreLocalHostpathCmd) Name() string     { return "restore_hostpath_local" }
-func (*RestoreLocalHostpathCmd) Synopsis() string { return "run restore hostpath local agent" }
-func (*RestoreLocalHostpathCmd) Usage() string    { return "" }
+func (*LocalInHostpathCmd) Name() string     { return "restore_hostpath_local" }
+func (*LocalInHostpathCmd) Synopsis() string { return "run restore hostpath local agent" }
+func (*LocalInHostpathCmd) Usage() string    { return "" }
 
-func (r *RestoreLocalHostpathCmd) SetFlags(f *flag.FlagSet) {
+func (r *LocalInHostpathCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
@@ -40,11 +40,11 @@ func (r *RestoreLocalHostpathCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
 }
 
-func (r *RestoreLocalHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore hostpath local agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("restoreHostpathLocal", r); err != nil {
+	if err := envconfig.Process("restoreLocal", r); err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
 	}
@@ -68,7 +68,7 @@ func (r *RestoreLocalHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ 
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackup(path.Join(r.BackupBaseDir, backupDirName, r.BackupFolderName), r.BackupBaseDir, id)
+	err = copyBackup(path.Join(r.BackupBaseDir, backup.DirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
 		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure
@@ -89,13 +89,13 @@ func (r *RestoreLocalHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ 
 }
 
 func copyBackup(backupDir, destDir string, id int) error {
-	backupUUIDs, err := backup.GetBackupUUIDFolders(backupDir)
+	backupUUIDs, err := backup.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
 
 	if len(backupUUIDs) != 1 && len(backupUUIDs) <= id {
-		return fmt.Errorf("Backup id is out of range")
+		return fmt.Errorf("backup id is out of range")
 	}
 
 	// If there is only one backup, members are isolated. No need for memberID
@@ -103,7 +103,7 @@ func copyBackup(backupDir, destDir string, id int) error {
 		id = 0
 	}
 
-	destBackupUUIDS, err := backup.GetBackupUUIDFolders(destDir)
+	destBackupUUIDS, err := backup.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

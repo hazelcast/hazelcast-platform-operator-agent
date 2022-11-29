@@ -3,8 +3,10 @@ package bucket
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gocloud.dev/blob"
@@ -25,26 +27,25 @@ const (
 
 // AWS
 const (
-	BucketDataS3AccessKeyID        = "access-key-id"
-	BucketDataS3SecretAccessKey    = "secret-access-key"
-	BucketDataS3Region             = "region"
-	BucketDataS3EnvAccessKeyID     = "AWS_ACCESS_KEY_ID"
-	BucketDataS3EnvSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
-	BucketDataS3EnvRegion          = "AWS_REGION"
+	S3AccessKeyID        = "access-key-id"
+	S3SecretAccessKey    = "secret-access-key"
+	S3Region             = "region"
+	S3EnvAccessKeyID     = "AWS_ACCESS_KEY_ID"
+	S3EnvSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
+	S3EnvRegion          = "AWS_REGION"
 )
 
 // GCP
 const (
-	BucketDataGCPCredentialFile    = "google-credentials-path"
-	BucketDataGCPEnvCredentialFile = "GOOGLE_APPLICATION_CREDENTIALS"
+	GCPCredentialFile = "google-credentials-path"
 )
 
 // Azure
 const (
-	BucketDataAzureStorageAccount    = "storage-account"
-	BucketDataAzureStorageKey        = "storage-key"
-	BucketDataAzureEnvStorageAccount = "AZURE_STORAGE_ACCOUNT"
-	BucketDataAzureEnvStorageKey     = "AZURE_STORAGE_KEY"
+	AzureStorageAccount    = "storage-account"
+	AzureStorageKey        = "storage-key"
+	AzureEnvStorageAccount = "AZURE_STORAGE_ACCOUNT"
+	AzureEnvStorageKey     = "AZURE_STORAGE_KEY"
 )
 
 func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]byte) (*blob.Bucket, error) {
@@ -63,7 +64,7 @@ func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]b
 	}
 }
 
-func GetSecretData(ctx context.Context, sn string) (map[string][]byte, error) {
+func SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func GetSecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 		return nil, err
 	}
 
-	namespace, err := getNamespace()
+	namespace, err := namespace()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func GetSecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	return secret.Data, nil
 }
 
-func getNamespace() (string, error) {
+func namespace() (string, error) {
 	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
 		return ns, nil
 	}
@@ -100,13 +101,13 @@ func getNamespace() (string, error) {
 }
 
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, BucketDataS3AccessKeyID, BucketDataS3EnvAccessKeyID); err != nil {
+	if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
 		return nil, err
 	}
-	if err := setCredentialEnv(secret, BucketDataS3Region, BucketDataS3EnvRegion); err != nil {
+	if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
 		return nil, err
 	}
-	if err := setCredentialEnv(secret, BucketDataS3SecretAccessKey, BucketDataS3EnvSecretAccessKey); err != nil {
+	if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
 		return nil, err
 	}
 
@@ -114,9 +115,9 @@ func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	value, ok := secret[BucketDataGCPCredentialFile]
+	value, ok := secret[GCPCredentialFile]
 	if !ok {
-		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", BucketDataGCPCredentialFile)
+		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", GCPCredentialFile)
 	}
 
 	creds, err := google.CredentialsFromJSON(ctx, value, "https://www.googleapis.com/auth/cloud-platform")
@@ -146,11 +147,11 @@ func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 }
 
 func openAZURE(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, BucketDataAzureStorageAccount, BucketDataAzureEnvStorageAccount); err != nil {
+	if err := setCredentialEnv(secret, AzureStorageAccount, AzureEnvStorageAccount); err != nil {
 		return nil, err
 	}
 
-	if err := setCredentialEnv(secret, BucketDataAzureStorageKey, BucketDataAzureEnvStorageKey); err != nil {
+	if err := setCredentialEnv(secret, AzureStorageKey, AzureEnvStorageKey); err != nil {
 		return nil, err
 	}
 
@@ -163,4 +164,31 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 		return fmt.Errorf("invalid secret: missing key: %v", key)
 	}
 	return os.Setenv(name, string(value))
+}
+
+func SaveFileFromBucket(ctx context.Context, bucket *blob.Bucket, key, path string) error {
+	s, err := bucket.NewReader(ctx, key, nil)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	destPath := filepath.Join(path, key)
+
+	d, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	if _, err = io.Copy(d, s); err != nil {
+		return err
+	}
+
+	// flush file
+	if err = d.Sync(); err != nil {
+		return err
+	}
+
+	return nil
 }

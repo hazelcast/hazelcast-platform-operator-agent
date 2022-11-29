@@ -22,17 +22,17 @@ import (
 )
 
 var (
-	BackupSequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
-	BackupUUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
+	SequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
+	UUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
 )
 
 var (
-	ErrEmptyBackupDir     = errors.New("Empty backup directory")
+	ErrEmptyBackupDir     = errors.New("empty backup directory")
 	ErrMemberIDOutOfIndex = errors.New("MemberID is out of index for present backup folders")
 )
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
-	backupSeqs, err := GetBackupSequenceFolders(backupsDir)
+	backupSeqs, err := folderSequence(backupsDir)
 	if err != nil {
 		return "", err
 	}
@@ -49,7 +49,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 		return "", err
 	}
 
-	backupUUIDS, err := GetBackupUUIDFolders(latestSeqDir)
+	backupUUIDS, err := FolderUUIDs(latestSeqDir)
 	if err != nil {
 		return "", err
 	}
@@ -103,10 +103,10 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateArchieve(w, backupDir, baseDirName)
+	return CreateArchive(w, backupDir, baseDirName)
 }
 
-func CreateArchieve(w io.Writer, dir, baseDirName string) error {
+func CreateArchive(w io.Writer, dir, baseDirName string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 
@@ -145,7 +145,7 @@ func CreateArchieve(w io.Writer, dir, baseDirName string) error {
 	})
 }
 
-// convertHumanReadableFormat converts backup-sequenceID into human readable format.
+// convertHumanReadableFormat converts backup-sequenceID into human-readable format.
 // backup-1643801670242 --> 2022-02-18-14-57-44
 func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	epochString := strings.ReplaceAll(backupFolderName, "backup-", "")
@@ -157,21 +157,21 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	return t.Format("2006-01-02-15-04-05"), nil
 }
 
-func GetBackupUUIDFolders(dir string) ([]os.DirEntry, error) {
+func FolderUUIDs(dir string) ([]os.DirEntry, error) {
 	backupUUIDs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	backupUUIDs = filterDirs(backupUUIDs, BackupUUIDRegex)
+	backupUUIDs = filterDirs(backupUUIDs, UUIDRegex)
 	return backupUUIDs, nil
 }
 
-func GetBackupSequenceFolders(dir string) ([]os.DirEntry, error) {
+func folderSequence(dir string) ([]os.DirEntry, error) {
 	backupSeqs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	backupSeqs = filterDirs(backupSeqs, BackupSequenceRegex)
+	backupSeqs = filterDirs(backupSeqs, SequenceRegex)
 	return backupSeqs, nil
 }
 

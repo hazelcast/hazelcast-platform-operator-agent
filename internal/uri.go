@@ -1,11 +1,11 @@
-package agent
+package internal
 
 import (
 	"net/url"
 	"path/filepath"
 )
 
-func formatURI(commonURI string) (uri string, err error) {
+func FormatURI(commonURI string) (uri string, err error) {
 	u, err := url.ParseRequestURI(commonURI)
 	if err != nil {
 		return
@@ -48,8 +48,8 @@ func formatURI(commonURI string) (uri string, err error) {
 	return formated.String(), nil
 }
 
-func addFolderKeyToURI(commonURI, path string) (string, error) {
-	commonURI, err := formatURI(commonURI)
+func AddFolderKeyToURI(commonURI, path string) (string, error) {
+	commonURI, err := FormatURI(commonURI)
 	if err != nil {
 		return "", err
 	}

@@ -17,7 +17,7 @@ Agent downloads `jar` files from a specified bucket and puts it under destined p
 
 ## Restore
 
-Agent restores backup files stored as `.tar.gz` archieves from specified bucket and puts the files under destined path. Learn more about `restore` command using the `--help` argument.
+Agent restores backup files stored as `.tar.gz` archives from specified bucket and puts the files under destined path. Learn more about `restore` command using the `--help` argument.
 
 ## Backup
 
