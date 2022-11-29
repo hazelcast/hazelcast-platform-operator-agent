@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal"
 	"github.com/kelseyhightower/envconfig"
@@ -116,7 +115,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 	}
 
 	// find backup UUIDs, they are sorted
-	hotRestartUUIDs, err := backup.FolderUUIDs(dst)
+	hotRestartUUIDs, err := internal.FolderUUIDs(dst)
 	if err != nil {
 		return err
 	}

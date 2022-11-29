@@ -4,7 +4,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+)
+
+var (
+	SequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
+	UUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
 )
 
 type File struct {
@@ -58,4 +64,32 @@ func DirFileList(baseDir string) ([]File, error) {
 		return nil, err
 	}
 	return files, nil
+}
+
+func FolderUUIDs(dir string) ([]os.DirEntry, error) {
+	backupUUIDs, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	backupUUIDs = FilterDirs(backupUUIDs, UUIDRegex)
+	return backupUUIDs, nil
+}
+
+func FolderSequence(dir string) ([]os.DirEntry, error) {
+	backupSeqs, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	backupSeqs = FilterDirs(backupSeqs, SequenceRegex)
+	return backupSeqs, nil
+}
+
+func FilterDirs(fs []os.DirEntry, regex *regexp.Regexp) []os.DirEntry {
+	var uuids []os.DirEntry
+	for _, f := range fs {
+		if regex.MatchString(f.Name()) && f.IsDir() {
+			uuids = append(uuids, f)
+		}
+	}
+	return uuids
 }

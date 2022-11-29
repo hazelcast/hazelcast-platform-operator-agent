@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/internal"
 	"io"
 	"log"
 	"os"
@@ -89,7 +90,7 @@ func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 }
 
 func copyBackup(backupDir, destDir string, id int) error {
-	backupUUIDs, err := backup.FolderUUIDs(backupDir)
+	backupUUIDs, err := internal.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func copyBackup(backupDir, destDir string, id int) error {
 		id = 0
 	}
 
-	destBackupUUIDS, err := backup.FolderUUIDs(destDir)
+	destBackupUUIDS, err := internal.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

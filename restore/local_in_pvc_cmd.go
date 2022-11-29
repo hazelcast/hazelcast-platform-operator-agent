@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"os"
 	"path"
@@ -86,7 +87,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 }
 
 func copyBackupPVC(backupDir, destDir string) error {
-	backupUUIDs, err := backup.FolderUUIDs(backupDir)
+	backupUUIDs, err := internal.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
@@ -95,7 +96,7 @@ func copyBackupPVC(backupDir, destDir string) error {
 		return fmt.Errorf("incorrect number of backups %d in backup sequence folder", len(backupUUIDs))
 	}
 
-	destBackupUUIDS, err := backup.FolderUUIDs(destDir)
+	destBackupUUIDS, err := internal.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

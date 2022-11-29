@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
 	_ "gocloud.dev/blob/azureblob"
@@ -135,7 +134,7 @@ func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData
 	}
 
 	// find backup UUIDs, they are sorted
-	hotRestartUUIDs, err := backup.FolderUUIDs(dst)
+	hotRestartUUIDs, err := internal.FolderUUIDs(dst)
 	if err != nil {
 		return err
 	}
