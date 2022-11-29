@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/hazelcast/platform-operator-agent/restore"
 	"gocloud.dev/blob/fileblob"
 	"io"
 	"net/http"
@@ -406,7 +405,7 @@ func TestUploadBackup(t *testing.T) {
 
 			for _, id := range tt.keys {
 				idPath := path.Join(backupDir, id)
-				err = internal.CreateFiles(idPath, restore.ExampleTarGzFiles, true)
+				err = internal.CreateFiles(idPath, internal.ExampleTarGzFiles, true)
 				require.Nil(t, err)
 			}
 
@@ -471,7 +470,7 @@ func TestCreateArchive(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"standard", restore.ExampleTarGzFiles, false,
+			"standard", internal.ExampleTarGzFiles, false,
 		},
 	}
 	for _, tt := range tests {
@@ -514,7 +513,7 @@ func TestCreateArchive(t *testing.T) {
 
 				files = append(files, internal.File{IsDir: isDir, Name: fileName})
 			}
-			require.ElementsMatch(t, files, restore.ExampleTarGzFiles)
+			require.ElementsMatch(t, files, internal.ExampleTarGzFiles)
 		})
 	}
 

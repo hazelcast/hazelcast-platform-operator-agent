@@ -71,7 +71,7 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzFilesBaseDir := path.Join(tmpdir, "archive")
-			err = internal.CreateFiles(tarGzFilesBaseDir, ExampleTarGzFiles, true)
+			err = internal.CreateFiles(tarGzFilesBaseDir, internal.ExampleTarGzFiles, true)
 			require.Nil(t, err)
 
 			dstPath := path.Join(tmpdir, "dest")

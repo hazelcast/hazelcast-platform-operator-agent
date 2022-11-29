@@ -1,8 +1,6 @@
-package restore
+package internal
 
-import "github.com/hazelcast/platform-operator-agent/internal"
-
-var ExampleTarGzFiles = []internal.File{
+var ExampleTarGzFiles = []File{
 	{"cluster", true},
 	{"cluster/cluster-state.txt", false},
 	{"cluster/cluster-version.txt", false},
