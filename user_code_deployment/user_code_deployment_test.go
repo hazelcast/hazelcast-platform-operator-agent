@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
 )
 
@@ -20,18 +21,53 @@ func TestDownloadClassJars(t *testing.T) {
 		wantFiles     []internal.File
 		wantErr       bool
 	}{
-		{"only jar allowed", true,
-			[]internal.File{{Name: "file1"}, {Name: "test1.jar"}, {Name: "test2.class"}},
-			[]internal.File{{Name: "test1.jar"}}, false},
-		{"no subfolder jars allowed", true,
-			[]internal.File{{Name: "folder1/test2.jar"}, {Name: "test1.jar"}, {Name: "test2.jar"}},
-			[]internal.File{{Name: "test1.jar"}, {Name: "test2.jar"}}, false},
-		{"no jar", true,
-			[]internal.File{{Name: "folder1/test2.jar"}, {Name: "test1.jar2"}, {Name: "jarjar"}},
-			[]internal.File{}, false},
-		{"dest path does not exist", false,
-			[]internal.File{{Name: "test1.jar"}},
-			[]internal.File{}, true},
+		{
+			"only jar allowed",
+			true,
+			[]internal.File{
+				{Name: "file1"},
+				{Name: "test1.jar"},
+				{Name: "test2.class"},
+			},
+			[]internal.File{
+				{Name: "test1.jar"},
+			},
+			false,
+		},
+		{
+			"no subfolder jars allowed",
+			true,
+			[]internal.File{
+				{Name: "folder1/test2.jar"},
+				{Name: "test1.jar"},
+				{Name: "test2.jar"},
+			},
+			[]internal.File{
+				{Name: "test1.jar"},
+				{Name: "test2.jar"},
+			},
+			false,
+		},
+		{
+			"no jar",
+			true,
+			[]internal.File{
+				{Name: "folder1/test2.jar"},
+				{Name: "test1.jar2"},
+				{Name: "jarjar"},
+			},
+			[]internal.File{},
+			false,
+		},
+		{
+			"dest path does not exist",
+			false,
+			[]internal.File{
+				{Name: "test1.jar"},
+			},
+			[]internal.File{},
+			true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
