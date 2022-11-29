@@ -1,7 +1,6 @@
 package restore
 
 import (
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/internal"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -112,7 +111,7 @@ func TestCopyBackupPVC(t *testing.T) {
 			}
 			require.DirExists(t, path.Join(destDir, tt.want))
 
-			f, err := backup.FolderUUIDs(destDir)
+			f, err := internal.FolderUUIDs(destDir)
 			require.Nil(t, err)
 			require.Equal(t, len(f), 1)
 			require.Equal(t, f[0].Name(), tt.want)

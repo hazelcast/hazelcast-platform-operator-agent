@@ -2,7 +2,6 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/internal"
 	"github.com/stretchr/testify/require"
 	"gocloud.dev/blob/fileblob"
@@ -111,7 +110,7 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 
 			require.ElementsMatch(t, wantTarGzFileList, gotFileList)
 
-			f, err := backup.FolderUUIDs(dstPath)
+			f, err := internal.FolderUUIDs(dstPath)
 			require.Nil(t, err)
 			require.Equal(t, len(f), 1)
 			require.Equal(t, f[0].Name(), wantUUID)
