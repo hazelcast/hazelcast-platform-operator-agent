@@ -1,42 +1,73 @@
-package agent
+package user_code_deployment
 
 import (
 	"context"
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal"
 	"os"
 	"path"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
 )
-
-type file struct {
-	name  string
-	isDir bool
-}
 
 func TestDownloadClassJars(t *testing.T) {
 	tests := []struct {
 		name          string
 		dstPathExists bool
-		files         []file
-		wantFiles     []file
+		files         []internal.File
+		wantFiles     []internal.File
 		wantErr       bool
 	}{
-		{"only jar allowed", true,
-			[]file{{name: "file1"}, {name: "test1.jar"}, {name: "test2.class"}},
-			[]file{{name: "test1.jar"}}, false},
-		{"no subfolder jars allowed", true,
-			[]file{{name: "folder1/test2.jar"}, {name: "test1.jar"}, {name: "test2.jar"}},
-			[]file{{name: "test1.jar"}, {name: "test2.jar"}}, false},
-		{"no jar", true,
-			[]file{{name: "folder1/test2.jar"}, {name: "test1.jar2"}, {name: "jarjar"}},
-			[]file{}, false},
-		{"dest path does not exist", false,
-			[]file{{name: "test1.jar"}},
-			[]file{}, true},
+		{
+			"only jar allowed",
+			true,
+			[]internal.File{
+				{Name: "file1"},
+				{Name: "test1.jar"},
+				{Name: "test2.class"},
+			},
+			[]internal.File{
+				{Name: "test1.jar"},
+			},
+			false,
+		},
+		{
+			"no subfolder jars allowed",
+			true,
+			[]internal.File{
+				{Name: "folder1/test2.jar"},
+				{Name: "test1.jar"},
+				{Name: "test2.jar"},
+			},
+			[]internal.File{
+				{Name: "test1.jar"},
+				{Name: "test2.jar"},
+			},
+			false,
+		},
+		{
+			"no jar",
+			true,
+			[]internal.File{
+				{Name: "folder1/test2.jar"},
+				{Name: "test1.jar2"},
+				{Name: "jarjar"},
+			},
+			[]internal.File{},
+			false,
+		},
+		{
+			"dest path does not exist",
+			false,
+			[]internal.File{
+				{Name: "test1.jar"},
+			},
+			[]internal.File{},
+			true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,7 +77,7 @@ func TestDownloadClassJars(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			bucketPath := path.Join(tmpdir, "bucket")
-			err = createFiles(bucketPath, tt.files, true)
+			err = internal.CreateFiles(bucketPath, tt.files, true)
 			require.Nil(t, err)
 
 			var dstPath string
@@ -64,7 +95,7 @@ func TestDownloadClassJars(t *testing.T) {
 				require.Contains(t, err.Error(), "no such file or directory")
 				return
 			}
-			copiedFiles, err := getDirFileList(dstPath)
+			copiedFiles, err := internal.DirFileList(dstPath)
 			require.Nil(t, err)
 			require.ElementsMatch(t, copiedFiles, tt.wantFiles)
 		})
@@ -88,9 +119,9 @@ func TestSaveFileFromBackup(t *testing.T) {
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
-			bucket := memblob.OpenBucket(nil)
-			defer bucket.Close()
-			err = bucket.WriteAll(context.Background(), tt.key, []byte("content"), nil)
+			b := memblob.OpenBucket(nil)
+			defer b.Close()
+			err = b.WriteAll(context.Background(), tt.key, []byte("content"), nil)
 			require.Nil(t, err)
 
 			var dstPath string
@@ -102,7 +133,7 @@ func TestSaveFileFromBackup(t *testing.T) {
 			}
 
 			// Run the tests
-			err = saveFileFromBucket(context.Background(), bucket, tt.key, dstPath)
+			err = bucket.SaveFileFromBucket(context.Background(), b, tt.key, dstPath)
 			require.Equal(t, tt.errWanted, err != nil, "Error is: ", err)
 			if err != nil {
 				require.Contains(t, err.Error(), "no such file or directory")
@@ -114,52 +145,4 @@ func TestSaveFileFromBackup(t *testing.T) {
 			require.Equal(t, []byte("content"), file)
 		})
 	}
-}
-
-func createFiles(pth string, files []file, createDir bool) error {
-	if createDir {
-		err := os.MkdirAll(pth, 0700)
-		if err != nil {
-			return err
-		}
-	}
-	for _, file := range files {
-		if file.isDir {
-			err := os.MkdirAll(path.Join(pth, file.name), 0700)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		err := os.MkdirAll(path.Join(pth, path.Dir(file.name)), 0700)
-		if err != nil {
-			return err
-		}
-
-		_, err = os.Create(path.Join(pth, file.name))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func getDirFileList(baseDir string) ([]file, error) {
-	files := []file{}
-	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if baseDir == path {
-			return nil
-		}
-		fileName := strings.TrimPrefix(path, baseDir+"/")
-		files = append(files, file{name: fileName, isDir: info.IsDir()})
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
 }

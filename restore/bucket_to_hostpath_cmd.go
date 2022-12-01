@@ -1,29 +1,20 @@
-package agent
+package restore
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"io/fs"
+	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
-	"gocloud.dev/blob"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
@@ -42,7 +33,7 @@ var (
 	lockRE = regexp.MustCompile(`^\.` + restoreLock + `\.[a-z0-9]*\.\d*$`)
 )
 
-type RestoreCmd struct {
+type BucketToHostpathCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
 	Destination string `envconfig:"RESTORE_DESTINATION"`
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
@@ -50,11 +41,11 @@ type RestoreCmd struct {
 	RestoreID   string `envconfig:"RESTORE_ID"`
 }
 
-func (*RestoreCmd) Name() string     { return "restore" }
-func (*RestoreCmd) Synopsis() string { return "run restore agent" }
-func (*RestoreCmd) Usage() string    { return "" }
+func (*BucketToHostpathCmd) Name() string     { return "restore_hostpath" }
+func (*BucketToHostpathCmd) Synopsis() string { return "run restore_hostpath agent" }
+func (*BucketToHostpathCmd) Usage() string    { return "" }
 
-func (r *RestoreCmd) SetFlags(f *flag.FlagSet) {
+func (r *BucketToHostpathCmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
@@ -63,7 +54,7 @@ func (r *RestoreCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *BucketToHostpathCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore agent...")
 
 	// overwrite config with environment variables
@@ -83,7 +74,7 @@ func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 	log.Println("Restore agent ID:", id)
 
-	bucketURI, err := formatURI(r.Bucket)
+	bucketURI, err := internal.FormatURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
@@ -91,14 +82,14 @@ func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
-	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
 		log.Println("Restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
 	log.Println("Reading secret:", r.SecretName)
-	secretData, err := bucket.GetSecretData(ctx, r.SecretName)
+	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
 		log.Println("error fetching secret data", err)
 		return subcommands.ExitFailure
@@ -106,7 +97,7 @@ func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 
 	// run download process
 	log.Println("Starting download:", r.Destination, id)
-	if err := download(ctx, bucketURI, r.Destination, id, secretData); err != nil {
+	if err := downloadToHostpath(ctx, bucketURI, r.Destination, id, secretData); err != nil {
 		log.Println("download error", err)
 		return subcommands.ExitFailure
 	}
@@ -116,7 +107,7 @@ func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
 		log.Println("Lock file creation error", err)
 		return subcommands.ExitFailure
 	}
@@ -125,15 +116,15 @@ func (r *RestoreCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	return subcommands.ExitSuccess
 }
 
-func download(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
-	bucket, err := bucket.OpenBucket(ctx, src, secretData)
+func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
+	b, err := bucket.OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
-	defer bucket.Close()
+	defer b.Close()
 
 	// find keys, they are sorted
-	keys, err := find(ctx, bucket)
+	keys, err := find(ctx, b)
 	if err != nil {
 		return err
 	}
@@ -143,7 +134,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	}
 
 	// find backup UUIDs, they are sorted
-	hotRestartUUIDs, err := backup.GetBackupUUIDFolders(dst)
+	hotRestartUUIDs, err := internal.FolderUUIDs(dst)
 	if err != nil {
 		return err
 	}
@@ -171,7 +162,7 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	// If there are multiple backups, members are not isolated
 	case lenUUIDs > 1:
 		if lenUUIDs != len(keys) {
-			return fmt.Errorf("Mismatching local hot-restart folder count %d and archieved backup file count %d", lenUUIDs, len(keys))
+			return fmt.Errorf("mismatching local hot-restart folder count %d and archived backup file count %d", lenUUIDs, len(keys))
 		}
 		if strings.TrimSuffix(path.Base(keys[id]), ".tar.gz") != hotRestartUUIDs[id].Name() {
 			// Assume user wants to restore from a completely different cluster
@@ -184,154 +175,15 @@ func download(ctx context.Context, src, dst string, id int, secretData map[strin
 	// cleanup hot-restart folder if present
 	if uuidToDelete != "" {
 		log.Println("Deleting the hot-restart folder", uuidToDelete)
-		if err := os.RemoveAll(path.Join(dst, uuidToDelete)); err != nil {
+		if err = os.RemoveAll(path.Join(dst, uuidToDelete)); err != nil {
 			return err
 		}
 	}
 
 	log.Println("Restoring", key)
-	if err := saveFromArchieve(ctx, bucket, key, dst); err != nil {
+	if err = saveFromArchive(ctx, b, key, dst); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func find(ctx context.Context, bucket *blob.Bucket) ([]string, error) {
-	var keys []string
-	var latest string
-	iter := bucket.List(nil)
-	for {
-		obj, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// naive validation, we only want tgz files
-		if !strings.HasSuffix(obj.Key, ".tar.gz") {
-			continue
-		}
-
-		// find latest directory if key starts with date (is in a directory with backups)
-		if dateRE.MatchString(obj.Key) {
-			dir := filepath.Dir(obj.Key)
-			// lexicographical comparison is good enough
-			if dir > latest {
-				latest = dir
-			}
-		}
-
-		keys = append(keys, obj.Key)
-	}
-
-	// this was a directory with backups, filter keys in latest backup
-	if latest != "" {
-		var l []string
-		for _, k := range keys {
-			if strings.HasPrefix(k, latest) {
-				l = append(l, k)
-			}
-		}
-		keys = l
-	}
-
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("There are no archived backup files in the bucket")
-	}
-
-	// to be extra safe we always sort the keys
-	sort.Strings(keys)
-
-	return keys, nil
-}
-
-func saveFromArchieve(ctx context.Context, bucket *blob.Bucket, key, target string) error {
-	s, err := bucket.NewReader(ctx, key, nil)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-
-	g, err := gzip.NewReader(s)
-	if err != nil {
-		return err
-	}
-	defer g.Close()
-
-	t := tar.NewReader(g)
-	for {
-		header, err := t.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		name := filepath.Join(target, header.Name)
-		if err := saveFile(name, header.FileInfo(), t); err != nil {
-			return err
-		}
-	}
-}
-
-func saveFile(name string, info fs.FileInfo, src io.Reader) error {
-	if info.IsDir() {
-		return os.MkdirAll(name, info.Mode())
-	}
-
-	dst, err := os.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	return err
-}
-
-var errParseID = errors.New("Couldn't parse statefulset hostname")
-
-func parseID(hostname string) (int, error) {
-	parts := hostnameRE.FindAllStringSubmatch(hostname, -1)
-	if parts == nil || (len(parts) != 1 && len(parts[0]) != 3) {
-		return 0, errParseID
-	}
-	return strconv.Atoi(parts[0][2])
-}
-
-func cleanupLocks(folder string, id int) error {
-	locks, err := getLocks(folder)
-	if err != nil {
-		return err
-	}
-
-	for _, lock := range locks {
-		if strings.HasSuffix(lock.Name(), "."+strconv.Itoa(id)) {
-			err = os.Remove(path.Join(folder, lock.Name()))
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func getLocks(dir string) ([]os.DirEntry, error) {
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	locks := []os.DirEntry{}
-	for _, file := range files {
-		if lockRE.MatchString(file.Name()) {
-			locks = append(locks, file)
-		}
-	}
-	return locks, nil
 }

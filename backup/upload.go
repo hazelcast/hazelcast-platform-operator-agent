@@ -5,12 +5,12 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"github.com/hazelcast/platform-operator-agent/internal"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,17 +22,12 @@ import (
 )
 
 var (
-	BackupSequenceRegex = regexp.MustCompile(`^backup-\d{13}$`)
-	BackupUUIDRegex     = regexp.MustCompile("^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$")
-)
-
-var (
-	ErrEmptyBackupDir     = errors.New("Empty backup directory")
+	ErrEmptyBackupDir     = errors.New("empty backup directory")
 	ErrMemberIDOutOfIndex = errors.New("MemberID is out of index for present backup folders")
 )
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
-	backupSeqs, err := GetBackupSequenceFolders(backupsDir)
+	backupSeqs, err := internal.FolderSequence(backupsDir)
 	if err != nil {
 		return "", err
 	}
@@ -49,7 +44,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 		return "", err
 	}
 
-	backupUUIDS, err := GetBackupUUIDFolders(latestSeqDir)
+	backupUUIDS, err := internal.FolderUUIDs(latestSeqDir)
 	if err != nil {
 		return "", err
 	}
@@ -87,8 +82,8 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 
 func allFilesMarkedToBeDeleted(files []fs.DirEntry, dir string) bool {
 	for _, file := range files {
-		dir := filepath.Join(dir, file.Name())
-		if _, err := os.Stat(dir + ".delete"); errors.Is(err, os.ErrNotExist) {
+		d := filepath.Join(dir, file.Name())
+		if _, err := os.Stat(d + ".delete"); errors.Is(err, os.ErrNotExist) {
 			return false
 		}
 	}
@@ -103,10 +98,10 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateArchieve(w, backupDir, baseDirName)
+	return CreateArchive(w, backupDir, baseDirName)
 }
 
-func CreateArchieve(w io.Writer, dir, baseDirName string) error {
+func CreateArchive(w io.Writer, dir, baseDirName string) error {
 	g := gzip.NewWriter(w)
 	defer g.Close()
 
@@ -126,7 +121,7 @@ func CreateArchieve(w io.Writer, dir, baseDirName string) error {
 		// make sure files are relative to baseDirName
 		header.Name = filepath.Join(baseDirName, strings.TrimPrefix(path, dir))
 
-		if err := t.WriteHeader(header); err != nil {
+		if err = t.WriteHeader(header); err != nil {
 			return err
 		}
 
@@ -145,7 +140,7 @@ func CreateArchieve(w io.Writer, dir, baseDirName string) error {
 	})
 }
 
-// convertHumanReadableFormat converts backup-sequenceID into human readable format.
+// convertHumanReadableFormat converts backup-sequenceID into human-readable format.
 // backup-1643801670242 --> 2022-02-18-14-57-44
 func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	epochString := strings.ReplaceAll(backupFolderName, "backup-", "")
@@ -155,32 +150,4 @@ func convertHumanReadableFormat(backupFolderName string) (string, error) {
 	}
 	t := time.UnixMilli(timestamp).UTC()
 	return t.Format("2006-01-02-15-04-05"), nil
-}
-
-func GetBackupUUIDFolders(dir string) ([]os.DirEntry, error) {
-	backupUUIDs, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	backupUUIDs = filterDirs(backupUUIDs, BackupUUIDRegex)
-	return backupUUIDs, nil
-}
-
-func GetBackupSequenceFolders(dir string) ([]os.DirEntry, error) {
-	backupSeqs, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	backupSeqs = filterDirs(backupSeqs, BackupSequenceRegex)
-	return backupSeqs, nil
-}
-
-func filterDirs(fs []os.DirEntry, regex *regexp.Regexp) []os.DirEntry {
-	var uuids []os.DirEntry
-	for _, f := range fs {
-		if regex.MatchString(f.Name()) && f.IsDir() {
-			uuids = append(uuids, f)
-		}
-	}
-	return uuids
 }

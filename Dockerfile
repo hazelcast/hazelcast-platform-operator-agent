@@ -6,12 +6,9 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY *.go ./
-COPY backup/ backup/
-COPY bucket/ bucket/
-COPY cmd/ cmd/
+COPY . ./
 
-RUN GOOS=linux GOARCH=amd64 go build ./cmd/platform-operator-agent/
+RUN GOOS=linux GOARCH=amd64 go build -v -o platform-operator-agent
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.5
 

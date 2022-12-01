@@ -1,4 +1,4 @@
-package agent
+package internal
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ func TestBasicFormatURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := formatURI(tt.commonURI)
+			got, err := FormatURI(tt.commonURI)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("formatURI() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -46,7 +46,7 @@ func TestAddFolderKeyToURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := addFolderKeyToURI(tt.commonURI, tt.path)
+			got, err := AddFolderKeyToURI(tt.commonURI, tt.path)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("addPrefix() error = %v, wantErr %v", err, tt.wantErr)
 				return

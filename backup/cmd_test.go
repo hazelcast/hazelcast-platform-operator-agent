@@ -1,9 +1,11 @@
-package agent
+package backup
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/internal"
+	"gocloud.dev/blob/fileblob"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,10 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gocloud.dev/blob/fileblob"
 )
 
 func TestBackupHandler(t *testing.T) {
@@ -29,35 +29,35 @@ func TestBackupHandler(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		body           BackupReq
-		files          []file
+		body           Req
+		files          []internal.File
 		wantStatusCode int
 		want           []string
 	}{
 		{
-			"should work", BackupReq{
+			"should work", Req{
 				BackupBaseDir: tmpDir("working_path"),
 				MemberID:      1,
 			},
-			[]file{
-				{name: "backup-0000000000001", isDir: true},
-				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000001", isDir: true},
-				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000002", isDir: false},
-				{name: "backup-0000000000001/00000000-0000-0000-0000-000000000003", isDir: true},
-				{name: "backup-0000000000001/wrong-id", isDir: false},
-				{name: "backup-0000000000002", isDir: false},
-				{name: "backup-0000000000004", isDir: true},
-				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000001", isDir: true},
-				{name: "backup-0000000000004/00000000-0000-0000-0000-000000000002", isDir: true},
-				{name: "backup-0000000000003", isDir: true},
-				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000001", isDir: true},
-				{name: "backup-0000000000003/00000000-0000-0000-0000-000000000002", isDir: true},
+			[]internal.File{
+				{Name: "backup-0000000000001", IsDir: true},
+				{Name: "backup-0000000000001/00000000-0000-0000-0000-000000000001", IsDir: true},
+				{Name: "backup-0000000000001/00000000-0000-0000-0000-000000000002", IsDir: false},
+				{Name: "backup-0000000000001/00000000-0000-0000-0000-000000000003", IsDir: true},
+				{Name: "backup-0000000000001/wrong-id", IsDir: false},
+				{Name: "backup-0000000000002", IsDir: false},
+				{Name: "backup-0000000000004", IsDir: true},
+				{Name: "backup-0000000000004/00000000-0000-0000-0000-000000000001", IsDir: true},
+				{Name: "backup-0000000000004/00000000-0000-0000-0000-000000000002", IsDir: true},
+				{Name: "backup-0000000000003", IsDir: true},
+				{Name: "backup-0000000000003/00000000-0000-0000-0000-000000000001", IsDir: true},
+				{Name: "backup-0000000000003/00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
 			http.StatusOK,
 			[]string{"backup-0000000000001/00000000-0000-0000-0000-000000000003", "backup-0000000000003/00000000-0000-0000-0000-000000000002", "backup-0000000000004/00000000-0000-0000-0000-000000000002"},
 		},
 		{
-			"should fail no backup dir exists", BackupReq{
+			"should fail no backup dir exists", Req{
 				BackupBaseDir: "does-not-exist",
 			},
 			nil,
@@ -68,9 +68,9 @@ func TestBackupHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			bs := &backupService{tasks: map[uuid.UUID]*task{}}
+			bs := &service{tasks: map[uuid.UUID]*task{}}
 
-			err := createFiles(path.Join(tt.body.BackupBaseDir, backupDirName), tt.files, false)
+			err := internal.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
 			require.Nil(t, err)
 			defer os.RemoveAll(tt.body.BackupBaseDir)
 
@@ -81,7 +81,7 @@ func TestBackupHandler(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Test
-			bs.backupHandler(w, req)
+			bs.listBackupsHandler(w, req)
 			res := w.Result()
 			st := res.StatusCode
 			require.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
@@ -90,7 +90,7 @@ func TestBackupHandler(t *testing.T) {
 			}
 
 			// Request was successful
-			resBody := &BackupResp{}
+			resBody := &Resp{}
 			defer res.Body.Close()
 			d := json.NewDecoder(res.Body)
 			err = d.Decode(resBody)
@@ -127,7 +127,7 @@ func TestUploadHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &backupService{tasks: map[uuid.UUID]*task{}}
+			us := &service{tasks: map[uuid.UUID]*task{}}
 			req := httptest.NewRequest(http.MethodPost, "http://request/upload", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
@@ -164,8 +164,8 @@ func TestStatusHandler(t *testing.T) {
 	}{
 		{
 			"should work",
-			map[uuid.UUID]*task{getUUIDFrom(""): getSuccessfulTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): successfulTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 			"",
 		},
@@ -179,28 +179,28 @@ func TestStatusHandler(t *testing.T) {
 		{
 			"task is not in map",
 			map[uuid.UUID]*task{},
-			getUUIDFrom("").String(),
+			stringToUUID("").String(),
 			http.StatusNotFound,
 			"",
 		},
 		{
 			"task is in progress",
-			map[uuid.UUID]*task{getUUIDFrom(""): getInProgressTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): inProgressTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 			"IN_PROGRESS",
 		},
 		{
 			"task cancelled",
-			map[uuid.UUID]*task{getUUIDFrom(""): getCancelledTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): cancelledTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 			"CANCELED",
 		},
 		{
 			"task failed",
-			map[uuid.UUID]*task{getUUIDFrom(""): getFailedTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): failedTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 			"FAILURE",
 		},
@@ -208,7 +208,7 @@ func TestStatusHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &backupService{tasks: tt.taskMap}
+			us := &service{tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -245,14 +245,14 @@ func TestCancelHandler(t *testing.T) {
 	}{
 		{
 			"should work for in progress task",
-			map[uuid.UUID]*task{getUUIDFrom(""): getInProgressTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): inProgressTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 		},
 		{
 			"should work for in successful task",
-			map[uuid.UUID]*task{getUUIDFrom(""): getSuccessfulTask(UploadReq{})},
-			getUUIDFrom("").String(),
+			map[uuid.UUID]*task{stringToUUID(""): successfulTask(UploadReq{})},
+			stringToUUID("").String(),
 			http.StatusOK,
 		},
 		{
@@ -264,14 +264,14 @@ func TestCancelHandler(t *testing.T) {
 		{
 			"task is not in map",
 			map[uuid.UUID]*task{},
-			getUUIDFrom("").String(),
+			stringToUUID("").String(),
 			http.StatusNotFound,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &backupService{tasks: tt.taskMap}
+			us := &service{tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -286,58 +286,6 @@ func TestCancelHandler(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
 		})
 	}
-}
-
-func getUUIDFrom(s string) uuid.UUID {
-	var bytes16 [16]byte
-	copy(bytes16[:], s)
-	return uuid.UUID(bytes16)
-}
-
-func getCancelledTask(req UploadReq) *task {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	t := &task{
-		req:    req,
-		ctx:    ctx,
-		cancel: cancel,
-		err:    context.Canceled,
-	}
-	return t
-}
-
-func getInProgressTask(req UploadReq) *task {
-	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{
-		req:    req,
-		ctx:    ctx,
-		cancel: cancel,
-		err:    nil,
-	}
-	return t
-}
-
-func getFailedTask(req UploadReq) *task {
-	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{
-		req:    req,
-		ctx:    ctx,
-		cancel: cancel,
-		err:    fmt.Errorf("Task is failed"),
-	}
-	cancel()
-	return t
-}
-func getSuccessfulTask(req UploadReq) *task {
-	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{
-		req:    req,
-		ctx:    ctx,
-		cancel: cancel,
-		err:    nil,
-	}
-	cancel()
-	return t
 }
 
 func TestUploadBackup(t *testing.T) {
@@ -457,7 +405,7 @@ func TestUploadBackup(t *testing.T) {
 
 			for _, id := range tt.keys {
 				idPath := path.Join(backupDir, id)
-				err = createFiles(idPath, exampleTarGzFiles, true)
+				err = internal.CreateFiles(idPath, internal.ExampleTarGzFiles, true)
 				require.Nil(t, err)
 			}
 
@@ -475,7 +423,7 @@ func TestUploadBackup(t *testing.T) {
 
 			// Run test
 			prefix := "prefix"
-			backupKey, err := backup.UploadBackup(ctx, bucket, backupDir, prefix, tt.memberID)
+			backupKey, err := UploadBackup(ctx, bucket, backupDir, prefix, tt.memberID)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
@@ -500,7 +448,7 @@ func TestUploadBackup(t *testing.T) {
 			// create tar.gz for the backup folder tt.keys[i]
 			str := new(strings.Builder)
 			idPath := path.Join(backupDirCopy, tt.want)
-			err = backup.CreateArchieve(str, idPath, path.Base(idPath))
+			err = CreateArchive(str, idPath, path.Base(idPath))
 			require.Nil(t, err)
 
 			// get the content of the tar in the bucket
@@ -512,42 +460,42 @@ func TestUploadBackup(t *testing.T) {
 	}
 }
 
-func TestCreateArchieve(t *testing.T) {
+func TestCreateArchive(t *testing.T) {
 	_, err := exec.LookPath("tar")
 	require.Nil(t, err, "Need tar executable for this test")
 
 	tests := []struct {
 		name    string
-		want    []file
+		want    []internal.File
 		wantErr bool
 	}{
 		{
-			"standard", exampleTarGzFiles, false,
+			"standard", internal.ExampleTarGzFiles, false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			tmpdir, err := os.MkdirTemp("", "create_archieve")
+			tmpdir, err := os.MkdirTemp("", "create_archive")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
 			tarGzipFilesDir := path.Join(tmpdir, "tarGzipFilesDir")
-			err = createFiles(tarGzipFilesDir, tt.want, true)
+			err = internal.CreateFiles(tarGzipFilesDir, tt.want, true)
 			require.Nil(t, err)
 
 			tarGzipFile, err := os.OpenFile(path.Join(tmpdir, "file.tar.gz"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0700)
 			require.Nil(t, err)
 
 			// Test
-			err = backup.CreateArchieve(tarGzipFile, tarGzipFilesDir, path.Base(tarGzipFilesDir))
+			err = CreateArchive(tarGzipFile, tarGzipFilesDir, path.Base(tarGzipFilesDir))
 			require.Nil(t, err)
 
 			cmd := exec.Command("tar", "-tvf", tarGzipFile.Name())
 			output, err := cmd.Output()
 			require.Nil(t, err)
 
-			var files []file
+			var files []internal.File
 			// lines are in form "drwx------ user/group           0 2022-07-29 00:10 tarGzipFilesDir"
 			for _, line := range strings.Split(strings.TrimSuffix(string(output), "\n"), "\n") {
 				// check if file is a dir
@@ -563,12 +511,64 @@ func TestCreateArchieve(t *testing.T) {
 				}
 				fileName := strings.TrimPrefix(filePath, path.Base(tarGzipFilesDir)+"/")
 
-				files = append(files, file{isDir: isDir, name: fileName})
+				files = append(files, internal.File{IsDir: isDir, Name: fileName})
 			}
-			require.ElementsMatch(t, files, exampleTarGzFiles)
+			require.ElementsMatch(t, files, internal.ExampleTarGzFiles)
 		})
 	}
 
+}
+
+func stringToUUID(s string) uuid.UUID {
+	var bytes16 [16]byte
+	copy(bytes16[:], s)
+	return bytes16
+}
+
+func cancelledTask(req UploadReq) *task {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	t := &task{
+		req:    req,
+		ctx:    ctx,
+		cancel: cancel,
+		err:    context.Canceled,
+	}
+	return t
+}
+
+func inProgressTask(req UploadReq) *task {
+	ctx, cancel := context.WithCancel(context.Background())
+	t := &task{
+		req:    req,
+		ctx:    ctx,
+		cancel: cancel,
+		err:    nil,
+	}
+	return t
+}
+
+func failedTask(req UploadReq) *task {
+	ctx, cancel := context.WithCancel(context.Background())
+	t := &task{
+		req:    req,
+		ctx:    ctx,
+		cancel: cancel,
+		err:    fmt.Errorf("task is failed"),
+	}
+	cancel()
+	return t
+}
+func successfulTask(req UploadReq) *task {
+	ctx, cancel := context.WithCancel(context.Background())
+	t := &task{
+		req:    req,
+		ctx:    ctx,
+		cancel: cancel,
+		err:    nil,
+	}
+	cancel()
+	return t
 }
 
 func countSubstring(list []string, substr string) (count int) {
