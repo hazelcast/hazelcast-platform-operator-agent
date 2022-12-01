@@ -157,15 +157,6 @@ func TestFind(t *testing.T) {
 			},
 			false,
 		},
-		// {
-		// 	"dates prefixed in different folders",
-		// 	[]string{
-		// 		"hz-cr1/2006-01-02-15-04-02/foo.tar.gz",
-		// 		"hz-cr2/2006-01-02-15-04-01/foo.tar.gz",
-		// 	},
-		// 	nil,
-		// 	false,
-		// },
 	}
 
 	ctx := context.Background()
