@@ -4,14 +4,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/bucket"
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/kelseyhightower/envconfig"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/google/subcommands"
+	"github.com/kelseyhightower/envconfig"
+
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 type BucketToPVCCmd struct {
@@ -55,7 +58,7 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...inte
 	}
 	log.Println("Restore agent ID:", id)
 
-	bucketURI, err := internal.FormatURI(r.Bucket)
+	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
@@ -115,7 +118,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 	}
 
 	// find backup UUIDs, they are sorted
-	hotRestartUUIDs, err := internal.FolderUUIDs(dst)
+	hotRestartUUIDs, err := fileutil.FolderUUIDs(dst)
 	if err != nil {
 		return err
 	}

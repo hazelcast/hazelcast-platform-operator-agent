@@ -2,11 +2,12 @@ package backup
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/hazelcast/platform-operator-agent/bucket"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"path"
+
+	"github.com/google/uuid"
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 // task is an upload process that is cancelable
@@ -23,7 +24,7 @@ func (t *task) process(ID uuid.UUID) {
 	defer log.Printf("TASK %s finished: %+v", ID, t)
 	defer t.cancel()
 
-	bucketURI, err := internal.FormatURI(t.req.BucketURL)
+	bucketURI, err := uri.NormalizeURI(t.req.BucketURL)
 	if err != nil {
 		log.Println("TASK", ID, "Error occurred while parsing bucket URI:", err)
 		t.err = err
@@ -60,7 +61,7 @@ func (t *task) process(ID uuid.UUID) {
 
 	log.Println("TASK", ID, "Finished upload")
 
-	backupKey, err := internal.AddFolderKeyToURI(bucketURI, folderKey)
+	backupKey, err := uri.AddFolderKeyToURI(bucketURI, folderKey)
 	if err != nil {
 		log.Println("TASK", ID, "uploadBackup:", err)
 		t.err = err

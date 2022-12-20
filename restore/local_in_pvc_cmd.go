@@ -4,15 +4,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/kelseyhightower/envconfig"
+
+	"github.com/hazelcast/platform-operator-agent/backup"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
@@ -87,7 +89,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 }
 
 func copyBackupPVC(backupDir, destDir string) error {
-	backupUUIDs, err := internal.FolderUUIDs(backupDir)
+	backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
@@ -96,7 +98,7 @@ func copyBackupPVC(backupDir, destDir string) error {
 		return fmt.Errorf("incorrect number of backups %d in backup sequence folder", len(backupUUIDs))
 	}
 
-	destBackupUUIDS, err := internal.FolderUUIDs(destDir)
+	destBackupUUIDS, err := fileutil.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

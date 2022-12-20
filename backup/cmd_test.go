@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"gocloud.dev/blob/fileblob"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +17,26 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/fileblob"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
+
+var exampleTarGzFiles = []fileutil.File{
+	{Name: "cluster", IsDir: true},
+	{Name: "cluster/cluster-state.txt", IsDir: false},
+	{Name: "cluster/cluster-version.txt", IsDir: false},
+	{Name: "cluster/partition-thread-count.bin", IsDir: false},
+	{Name: "configs", IsDir: true},
+	{Name: "s00", IsDir: true},
+	{Name: "s00/tombstone", IsDir: true},
+	{Name: "cluster/members.bin", IsDir: false},
+	{Name: "s00/tombstone/02", IsDir: true},
+	{Name: "s00/tombstone/02/0000000000000002.chunk", IsDir: false},
+	{Name: "s00/value", IsDir: true},
+	{Name: "s00/value/01", IsDir: true},
+	{Name: "s00/value/01/0000000000000001.chunk", IsDir: false},
+}
 
 func TestBackupHandler(t *testing.T) {
 	tmpDir := func(name string) string {
@@ -30,7 +47,7 @@ func TestBackupHandler(t *testing.T) {
 	tests := []struct {
 		name           string
 		body           Req
-		files          []internal.File
+		files          []fileutil.File
 		wantStatusCode int
 		want           []string
 	}{
@@ -39,7 +56,7 @@ func TestBackupHandler(t *testing.T) {
 				BackupBaseDir: tmpDir("working_path"),
 				MemberID:      1,
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "backup-0000000000001", IsDir: true},
 				{Name: "backup-0000000000001/00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "backup-0000000000001/00000000-0000-0000-0000-000000000002", IsDir: false},
@@ -70,7 +87,7 @@ func TestBackupHandler(t *testing.T) {
 			// Set up
 			bs := &service{tasks: map[uuid.UUID]*task{}}
 
-			err := internal.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
+			err := fileutil.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
 			require.Nil(t, err)
 			defer os.RemoveAll(tt.body.BackupBaseDir)
 
@@ -405,7 +422,7 @@ func TestUploadBackup(t *testing.T) {
 
 			for _, id := range tt.keys {
 				idPath := path.Join(backupDir, id)
-				err = internal.CreateFiles(idPath, internal.ExampleTarGzFiles, true)
+				err = fileutil.CreateFiles(idPath, exampleTarGzFiles, true)
 				require.Nil(t, err)
 			}
 
@@ -466,11 +483,11 @@ func TestCreateArchive(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		want    []internal.File
+		want    []fileutil.File
 		wantErr bool
 	}{
 		{
-			"standard", internal.ExampleTarGzFiles, false,
+			"standard", exampleTarGzFiles, false,
 		},
 	}
 	for _, tt := range tests {
@@ -481,7 +498,7 @@ func TestCreateArchive(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzipFilesDir := path.Join(tmpdir, "tarGzipFilesDir")
-			err = internal.CreateFiles(tarGzipFilesDir, tt.want, true)
+			err = fileutil.CreateFiles(tarGzipFilesDir, tt.want, true)
 			require.Nil(t, err)
 
 			tarGzipFile, err := os.OpenFile(path.Join(tmpdir, "file.tar.gz"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0700)
@@ -495,7 +512,7 @@ func TestCreateArchive(t *testing.T) {
 			output, err := cmd.Output()
 			require.Nil(t, err)
 
-			var files []internal.File
+			var files []fileutil.File
 			// lines are in form "drwx------ user/group           0 2022-07-29 00:10 tarGzipFilesDir"
 			for _, line := range strings.Split(strings.TrimSuffix(string(output), "\n"), "\n") {
 				// check if file is a dir
@@ -511,9 +528,9 @@ func TestCreateArchive(t *testing.T) {
 				}
 				fileName := strings.TrimPrefix(filePath, path.Base(tarGzipFilesDir)+"/")
 
-				files = append(files, internal.File{IsDir: isDir, Name: fileName})
+				files = append(files, fileutil.File{IsDir: isDir, Name: fileName})
 			}
-			require.ElementsMatch(t, files, internal.ExampleTarGzFiles)
+			require.ElementsMatch(t, files, exampleTarGzFiles)
 		})
 	}
 

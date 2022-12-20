@@ -1,19 +1,21 @@
 package restore
 
 import (
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 func TestCopyBackup(t *testing.T) {
 	tests := []struct {
 		Name        string
 		memberID    int
-		keys        []internal.File
-		destUUIDs   []internal.File
+		keys        []fileutil.File
+		destUUIDs   []fileutil.File
 		want        string
 		wantDeleted string
 		wantErr     bool
@@ -21,8 +23,8 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"empty backup dir",
 			0,
-			[]internal.File{},
-			[]internal.File{},
+			[]fileutil.File{},
+			[]fileutil.File{},
 			"",
 			"",
 			true,
@@ -30,10 +32,10 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"single backup",
 			0,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -43,10 +45,10 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"incorrect member id but isolated backups",
 			5,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -56,10 +58,10 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"single backup, backup and hot-restart uuids are different",
 			0,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-00000000000a", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -69,11 +71,11 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"member ID is out of index error",
 			2,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
@@ -84,11 +86,11 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"mismatching number of backup folders and dest backup folders",
 			0,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
 			"",
@@ -98,13 +100,13 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"multiple backups",
 			2,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000003", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000004", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000003", IsDir: true},
@@ -117,13 +119,13 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"multiple backups, backup and hot-restart uuids are different",
 			2,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000003", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000004", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-00000000000a", IsDir: true},
 				{Name: "00000000-0000-0000-0000-00000000000b", IsDir: true},
 				{Name: "00000000-0000-0000-0000-00000000000c", IsDir: true},
@@ -136,14 +138,14 @@ func TestCopyBackup(t *testing.T) {
 		{
 			"multiple backups with incorrect backup Name and file type",
 			1,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "000000000000", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000003", IsDir: false},
 				{Name: "00000000-0000-0000-0000-000000000004", IsDir: true},
 				{Name: "abc", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-00000000000a", IsDir: true},
 			},
@@ -162,13 +164,13 @@ func TestCopyBackup(t *testing.T) {
 			// create backupDir and add backup contents
 			backupDir, err := os.MkdirTemp(tmpdir, "backupDir")
 			require.Nil(t, err)
-			err = internal.CreateFiles(backupDir, tt.keys, true)
+			err = fileutil.CreateFiles(backupDir, tt.keys, true)
 			require.Nil(t, err)
 
 			// create backupDir and add backup contents
 			destDir, err := os.MkdirTemp(tmpdir, "destDir")
 			require.Nil(t, err)
-			err = internal.CreateFiles(destDir, tt.destUUIDs, true)
+			err = fileutil.CreateFiles(destDir, tt.destUUIDs, true)
 			require.Nil(t, err)
 
 			//test

@@ -5,14 +5,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	"log"
+	"net/http"
+	"os"
+
 	"github.com/google/subcommands"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/sync/errgroup"
-	"log"
-	"net/http"
-	"os"
 )
 
 const (

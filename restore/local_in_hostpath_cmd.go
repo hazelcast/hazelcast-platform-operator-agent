@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"io"
 	"log"
 	"os"
@@ -14,11 +13,13 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
+
+	"github.com/hazelcast/platform-operator-agent/backup"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
-
-	"github.com/hazelcast/platform-operator-agent/backup"
 )
 
 type LocalInHostpathCmd struct {
@@ -90,7 +91,7 @@ func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 }
 
 func copyBackup(backupDir, destDir string, id int) error {
-	backupUUIDs, err := internal.FolderUUIDs(backupDir)
+	backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func copyBackup(backupDir, destDir string, id int) error {
 		id = 0
 	}
 
-	destBackupUUIDS, err := internal.FolderUUIDs(destDir)
+	destBackupUUIDS, err := fileutil.FolderUUIDs(destDir)
 	if err != nil {
 		return err
 	}

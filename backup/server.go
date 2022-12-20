@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"net/http"
 	"path"
 	"sync"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 // service handles requests and keeps track of tasks
@@ -41,7 +42,7 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	backupsDir := path.Join(req.BackupBaseDir, DirName)
-	backupSeqs, err := internal.FolderSequence(backupsDir)
+	backupSeqs, err := fileutil.FolderSequence(backupsDir)
 	if err != nil {
 		log.Println("BACKUP", "Error reading backup sequence directory", err)
 		httpError(w, http.StatusBadRequest)
@@ -51,7 +52,7 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	var backups []string
 	for _, backupSeq := range backupSeqs {
 		backupDir := path.Join(backupsDir, backupSeq.Name())
-		backupUUIDs, err := internal.FolderUUIDs(backupDir)
+		backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 		if err != nil {
 			log.Println("BACKUP", "Error reading backup directory", err)
 			httpError(w, http.StatusBadRequest)

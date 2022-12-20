@@ -2,24 +2,26 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/internal"
+	"os"
+	"path"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
-	"os"
-	"path"
-	"testing"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 func TestSaveFromArchive(t *testing.T) {
 	tests := []struct {
 		name    string
-		files   []internal.File
+		files   []fileutil.File
 		wantErr bool
 	}{
 		{
-			"example", []internal.File{
+			"example", []fileutil.File{
 				{Name: "file1"},
 				{Name: "folder2", IsDir: true},
 				{Name: "folder2/file6.xy"},
@@ -28,7 +30,7 @@ func TestSaveFromArchive(t *testing.T) {
 			}, false,
 		},
 		{
-			"empty folder", []internal.File{}, false,
+			"empty folder", []fileutil.File{}, false,
 		},
 	}
 	ctx := context.Background()
@@ -43,7 +45,7 @@ func TestSaveFromArchive(t *testing.T) {
 			tarName := "dest.tar.gz"
 			tarFilePath := path.Join(tmpdir, tarName)
 
-			err = internal.CreateFiles(tarFilesDir, tt.files, true)
+			err = fileutil.CreateFiles(tarFilesDir, tt.files, true)
 			require.Nil(t, err)
 
 			err = createArchiveFile(tarFilesDir, path.Base(tarFilesDir), tarFilePath)
@@ -61,7 +63,7 @@ func TestSaveFromArchive(t *testing.T) {
 			if err != nil {
 				return
 			}
-			gotFiles, err := internal.DirFileList(path.Join(destDir, "tarBaseDir"))
+			gotFiles, err := fileutil.DirFileList(path.Join(destDir, "tarBaseDir"))
 			require.Nil(t, err)
 			require.ElementsMatch(t, tt.files, gotFiles)
 

@@ -1,17 +1,18 @@
-package user_code_deployment
+package usercode
 
 import (
 	"context"
 	"flag"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"io"
 	"log"
 	"path"
 	"strings"
 
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
+
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 type Cmd struct {
@@ -40,7 +41,7 @@ func (r *Cmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) su
 		return subcommands.ExitFailure
 	}
 
-	bucketURI, err := internal.FormatURI(r.Bucket)
+	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"log"
 	"os"
 	"path"
@@ -13,8 +12,12 @@ import (
 	"strings"
 
 	"github.com/google/subcommands"
-	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/kelseyhightower/envconfig"
+
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
+
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
@@ -74,7 +77,7 @@ func (r *BucketToHostpathCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ..
 	}
 	log.Println("Restore agent ID:", id)
 
-	bucketURI, err := internal.FormatURI(r.Bucket)
+	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
@@ -134,7 +137,7 @@ func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData
 	}
 
 	// find backup UUIDs, they are sorted
-	hotRestartUUIDs, err := internal.FolderUUIDs(dst)
+	hotRestartUUIDs, err := fileutil.FolderUUIDs(dst)
 	if err != nil {
 		return err
 	}

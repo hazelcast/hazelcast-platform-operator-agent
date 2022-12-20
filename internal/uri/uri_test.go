@@ -1,10 +1,10 @@
-package internal
+package uri
 
 import (
 	"testing"
 )
 
-func TestBasicFormatURI(t *testing.T) {
+func TestBasicNormalizeURI(t *testing.T) {
 	tests := []struct {
 		name      string
 		commonURI string
@@ -20,13 +20,13 @@ func TestBasicFormatURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FormatURI(tt.commonURI)
+			got, err := NormalizeURI(tt.commonURI)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("formatURI() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NormalizeURI() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("formatURI() = %v, want %v", got, tt.want)
+				t.Errorf("NormalizeURI() = %v, want %v", got, tt.want)
 			}
 		})
 	}
