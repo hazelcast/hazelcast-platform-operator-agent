@@ -2,14 +2,32 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/stretchr/testify/require"
-	"gocloud.dev/blob/fileblob"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/fileblob"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
+
+var exampleTarGzFiles = []fileutil.File{
+	{Name: "cluster", IsDir: true},
+	{Name: "cluster/cluster-state.txt", IsDir: false},
+	{Name: "cluster/cluster-version.txt", IsDir: false},
+	{Name: "cluster/partition-thread-count.bin", IsDir: false},
+	{Name: "configs", IsDir: true},
+	{Name: "s00", IsDir: true},
+	{Name: "s00/tombstone", IsDir: true},
+	{Name: "cluster/members.bin", IsDir: false},
+	{Name: "s00/tombstone/02", IsDir: true},
+	{Name: "s00/tombstone/02/0000000000000002.chunk", IsDir: false},
+	{Name: "s00/value", IsDir: true},
+	{Name: "s00/value/01", IsDir: true},
+	{Name: "s00/value/01/0000000000000001.chunk", IsDir: false},
+}
 
 func TestDownloadFromBucketToPVC(t *testing.T) {
 	tests := []struct {
@@ -71,7 +89,7 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzFilesBaseDir := path.Join(tmpdir, "archive")
-			err = internal.CreateFiles(tarGzFilesBaseDir, internal.ExampleTarGzFiles, true)
+			err = fileutil.CreateFiles(tarGzFilesBaseDir, exampleTarGzFiles, true)
 			require.Nil(t, err)
 
 			dstPath := path.Join(tmpdir, "dest")
@@ -102,15 +120,15 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 			if tt.want == "" {
 				return
 			}
-			wantTarGzFileList, err := internal.DirFileList(tarGzFilesBaseDir)
+			wantTarGzFileList, err := fileutil.DirFileList(tarGzFilesBaseDir)
 			require.Nil(t, err)
 
-			gotFileList, err := internal.DirFileList(path.Join(dstPath, wantUUID))
+			gotFileList, err := fileutil.DirFileList(path.Join(dstPath, wantUUID))
 			require.Nil(t, err)
 
 			require.ElementsMatch(t, wantTarGzFileList, gotFileList)
 
-			f, err := internal.FolderUUIDs(dstPath)
+			f, err := fileutil.FolderUUIDs(dstPath)
 			require.Nil(t, err)
 			require.Equal(t, len(f), 1)
 			require.Equal(t, f[0].Name(), wantUUID)

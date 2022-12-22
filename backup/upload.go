@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"io"
 	"io/fs"
 	"log"
@@ -19,6 +18,8 @@ import (
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/s3blob"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 var (
@@ -27,7 +28,7 @@ var (
 )
 
 func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix string, memberID int) (string, error) {
-	backupSeqs, err := internal.FolderSequence(backupsDir)
+	backupSeqs, err := fileutil.FolderSequence(backupsDir)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +45,7 @@ func UploadBackup(ctx context.Context, bucket *blob.Bucket, backupsDir, prefix s
 		return "", err
 	}
 
-	backupUUIDS, err := internal.FolderUUIDs(latestSeqDir)
+	backupUUIDS, err := fileutil.FolderUUIDs(latestSeqDir)
 	if err != nil {
 		return "", err
 	}

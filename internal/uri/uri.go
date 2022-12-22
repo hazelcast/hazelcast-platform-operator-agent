@@ -1,11 +1,11 @@
-package internal
+package uri
 
 import (
 	"net/url"
 	"path/filepath"
 )
 
-func FormatURI(commonURI string) (uri string, err error) {
+func NormalizeURI(commonURI string) (uri string, err error) {
 	u, err := url.ParseRequestURI(commonURI)
 	if err != nil {
 		return
@@ -49,7 +49,7 @@ func FormatURI(commonURI string) (uri string, err error) {
 }
 
 func AddFolderKeyToURI(commonURI, path string) (string, error) {
-	commonURI, err := FormatURI(commonURI)
+	commonURI, err := NormalizeURI(commonURI)
 	if err != nil {
 		return "", err
 	}

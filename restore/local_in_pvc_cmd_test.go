@@ -1,35 +1,37 @@
 package restore
 
 import (
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 func TestCopyBackupPVC(t *testing.T) {
 
 	tests := []struct {
 		Name      string
-		keys      []internal.File
-		destUUIDs []internal.File
+		keys      []fileutil.File
+		destUUIDs []fileutil.File
 		want      string
 		wantErr   bool
 	}{
 		{
 			"empty backup dir",
-			[]internal.File{},
-			[]internal.File{},
+			[]fileutil.File{},
+			[]fileutil.File{},
 			"",
 			true,
 		},
 		{
 			"single backup",
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -37,10 +39,10 @@ func TestCopyBackupPVC(t *testing.T) {
 		},
 		{
 			"incorrect member id but isolated backups",
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -48,10 +50,10 @@ func TestCopyBackupPVC(t *testing.T) {
 		},
 		{
 			"backup and hot-restart uuids are different",
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-00000000000a", IsDir: true},
 			},
 			"00000000-0000-0000-0000-000000000001",
@@ -59,11 +61,11 @@ func TestCopyBackupPVC(t *testing.T) {
 		},
 		{
 			"member ID is out of index error",
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 			},
@@ -72,10 +74,10 @@ func TestCopyBackupPVC(t *testing.T) {
 		},
 		{
 			"multiple hot restart folders",
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000003", IsDir: true},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "00000000-0000-0000-0000-000000000001", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000002", IsDir: true},
 				{Name: "00000000-0000-0000-0000-000000000004", IsDir: true},
@@ -94,13 +96,13 @@ func TestCopyBackupPVC(t *testing.T) {
 			// create backupDir and add backup contents
 			backupDir, err := os.MkdirTemp(tmpdir, "backupDir")
 			require.Nil(t, err)
-			err = internal.CreateFiles(backupDir, tt.keys, true)
+			err = fileutil.CreateFiles(backupDir, tt.keys, true)
 			require.Nil(t, err)
 
 			// create backupDir and add backup contents
 			destDir, err := os.MkdirTemp(tmpdir, "destDir")
 			require.Nil(t, err)
-			err = internal.CreateFiles(destDir, tt.destUUIDs, true)
+			err = fileutil.CreateFiles(destDir, tt.destUUIDs, true)
 			require.Nil(t, err)
 
 			//test
@@ -111,7 +113,7 @@ func TestCopyBackupPVC(t *testing.T) {
 			}
 			require.DirExists(t, path.Join(destDir, tt.want))
 
-			f, err := internal.FolderUUIDs(destDir)
+			f, err := fileutil.FolderUUIDs(destDir)
 			require.Nil(t, err)
 			require.Equal(t, len(f), 1)
 			require.Equal(t, f[0].Name(), tt.want)

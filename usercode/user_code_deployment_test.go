@@ -1,35 +1,37 @@
-package user_code_deployment
+package usercode
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/bucket"
-	"github.com/hazelcast/platform-operator-agent/internal"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
+
+	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+
+	_ "gocloud.dev/blob/fileblob"
 )
 
 func TestDownloadClassJars(t *testing.T) {
 	tests := []struct {
 		name          string
 		dstPathExists bool
-		files         []internal.File
-		wantFiles     []internal.File
+		files         []fileutil.File
+		wantFiles     []fileutil.File
 		wantErr       bool
 	}{
 		{
 			"only jar allowed",
 			true,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "file1"},
 				{Name: "test1.jar"},
 				{Name: "test2.class"},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "test1.jar"},
 			},
 			false,
@@ -37,12 +39,12 @@ func TestDownloadClassJars(t *testing.T) {
 		{
 			"no subfolder jars allowed",
 			true,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "folder1/test2.jar"},
 				{Name: "test1.jar"},
 				{Name: "test2.jar"},
 			},
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "test1.jar"},
 				{Name: "test2.jar"},
 			},
@@ -51,21 +53,21 @@ func TestDownloadClassJars(t *testing.T) {
 		{
 			"no jar",
 			true,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "folder1/test2.jar"},
 				{Name: "test1.jar2"},
 				{Name: "jarjar"},
 			},
-			[]internal.File{},
+			[]fileutil.File{},
 			false,
 		},
 		{
 			"dest path does not exist",
 			false,
-			[]internal.File{
+			[]fileutil.File{
 				{Name: "test1.jar"},
 			},
-			[]internal.File{},
+			[]fileutil.File{},
 			true,
 		},
 	}
@@ -77,7 +79,7 @@ func TestDownloadClassJars(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			bucketPath := path.Join(tmpdir, "bucket")
-			err = internal.CreateFiles(bucketPath, tt.files, true)
+			err = fileutil.CreateFiles(bucketPath, tt.files, true)
 			require.Nil(t, err)
 
 			var dstPath string
@@ -95,7 +97,7 @@ func TestDownloadClassJars(t *testing.T) {
 				require.Contains(t, err.Error(), "no such file or directory")
 				return
 			}
-			copiedFiles, err := internal.DirFileList(dstPath)
+			copiedFiles, err := fileutil.DirFileList(dstPath)
 			require.Nil(t, err)
 			require.ElementsMatch(t, copiedFiles, tt.wantFiles)
 		})

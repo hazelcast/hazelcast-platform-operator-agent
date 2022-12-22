@@ -2,13 +2,15 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/internal"
-	"github.com/stretchr/testify/require"
-	"gocloud.dev/blob/fileblob"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/fileblob"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 func TestDownloadToHostpath(t *testing.T) {
@@ -129,7 +131,7 @@ func TestDownloadToHostpath(t *testing.T) {
 			defer os.RemoveAll(tmpdir)
 
 			tarGzFilesBaseDir := path.Join(tmpdir, "archive")
-			err = internal.CreateFiles(tarGzFilesBaseDir, internal.ExampleTarGzFiles, true)
+			err = fileutil.CreateFiles(tarGzFilesBaseDir, exampleTarGzFiles, true)
 			require.Nil(t, err)
 
 			dstPath := path.Join(tmpdir, "dest")
@@ -160,10 +162,10 @@ func TestDownloadToHostpath(t *testing.T) {
 			if tt.want == "" {
 				return
 			}
-			wantTarGzFileList, err := internal.DirFileList(tarGzFilesBaseDir)
+			wantTarGzFileList, err := fileutil.DirFileList(tarGzFilesBaseDir)
 			require.Nil(t, err)
 
-			gotFileList, err := internal.DirFileList(path.Join(dstPath, wantUUID))
+			gotFileList, err := fileutil.DirFileList(path.Join(dstPath, wantUUID))
 			require.Nil(t, err)
 
 			require.ElementsMatch(t, wantTarGzFileList, gotFileList)
