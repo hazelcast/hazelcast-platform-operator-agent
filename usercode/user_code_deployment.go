@@ -5,7 +5,9 @@ import (
 	"flag"
 	"io"
 	"log"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/subcommands"
@@ -14,6 +16,8 @@ import (
 	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
+
+const usercodeLock = "usercode_lock"
 
 type Cmd struct {
 	Bucket      string `envconfig:"UCD_BUCKET"`
@@ -41,6 +45,13 @@ func (r *Cmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) su
 		return subcommands.ExitFailure
 	}
 
+	lock := filepath.Join(r.Destination, usercodeLock)
+	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+		// If usercodeLock lock exists exit
+		log.Println("Lock file exists, exiting")
+		return subcommands.ExitSuccess
+	}
+
 	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
@@ -58,6 +69,11 @@ func (r *Cmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) su
 	log.Println("Starting download:", r.Destination)
 	if err = downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
 		log.Println("download error", err)
+		return subcommands.ExitFailure
+	}
+
+	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
+		log.Println("Lock file creation error", err)
 		return subcommands.ExitFailure
 	}
 
