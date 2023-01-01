@@ -2,8 +2,8 @@ package backup
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
 	"log"
 	"net/http"
 	"path"
@@ -35,9 +35,9 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req Req
-	if err := decodeBody(r, &req); err != nil {
+	if err := serverutil.DecodeBody(r, &req); err != nil {
 		log.Println("BACKUP", "Error occurred while parsing body:", err)
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -45,7 +45,7 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	backupSeqs, err := fileutil.FolderSequence(backupsDir)
 	if err != nil {
 		log.Println("BACKUP", "Error reading backup sequence directory", err)
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -55,13 +55,13 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 		if err != nil {
 			log.Println("BACKUP", "Error reading backup directory", err)
-			httpError(w, http.StatusBadRequest)
+			serverutil.HttpError(w, http.StatusBadRequest)
 			return
 		}
 
 		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
 			log.Println("BACKUP", "Invalid UUID")
-			httpError(w, http.StatusBadRequest)
+			serverutil.HttpError(w, http.StatusBadRequest)
 			return
 		}
 
@@ -77,7 +77,7 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("BACKUP", "Found backup", backupPath)
 	}
 
-	httpJSON(w, Resp{Backups: backups})
+	serverutil.HttpJSON(w, Resp{Backups: backups})
 }
 
 // UploadReq is a backup service upload method request
@@ -98,16 +98,16 @@ func (s *service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req UploadReq
-	if err := decodeBody(r, &req); err != nil {
+	if err := serverutil.DecodeBody(r, &req); err != nil {
 		log.Println("UPLOAD", "Error occurred while parsing body:", err)
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
 		log.Println("UPLOAD", "Error occurred while generating new UUID:", err)
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (s *service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("UPLOAD", ID, "Starting new task")
 	go t.process(ID)
 
-	httpJSON(w, UploadResp{ID: ID})
+	serverutil.HttpJSON(w, UploadResp{ID: ID})
 }
 
 // StatusResp is a backup service task status response
@@ -143,7 +143,7 @@ func (s *service) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -154,33 +154,33 @@ func (s *service) statusHandler(w http.ResponseWriter, r *http.Request) {
 	// unknown task
 	if !ok {
 		log.Println("STATUS", ID, "Task not found")
-		httpError(w, http.StatusNotFound)
+		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
 		log.Println("STATUS", ID, "Task in progress")
-		httpJSON(w, StatusResp{Status: "IN_PROGRESS"})
+		serverutil.HttpJSON(w, StatusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
 		log.Println("STATUS", ID, "Task canceled")
-		httpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
+		serverutil.HttpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
 		log.Println("STATUS", ID, "Task failed")
-		httpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
+		serverutil.HttpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
 	log.Println("STATUS", ID, "Task successful")
-	httpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
+	serverutil.HttpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
 func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +190,7 @@ func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		httpError(w, http.StatusBadRequest)
+		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -199,7 +199,7 @@ func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 	if !ok {
 		log.Println("CANCEL", ID, "Task not found")
-		httpError(w, http.StatusNotFound)
+		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 
@@ -210,29 +210,4 @@ func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *service) healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-}
-
-func decodeBody(r *http.Request, v interface{}) error {
-	defer r.Body.Close()
-	d := json.NewDecoder(r.Body)
-	if err := d.Decode(v); err != nil {
-		return err
-	}
-	log.Printf("BODY %+v", v)
-	return nil
-}
-
-func httpError(w http.ResponseWriter, code int) {
-	log.Println("ERROR", code)
-	http.Error(w, http.StatusText(code), code)
-}
-
-func httpJSON(w http.ResponseWriter, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	e := json.NewEncoder(w)
-	e.SetIndent("", "  ")
-	if err := e.Encode(v); err != nil {
-		httpError(w, http.StatusInternalServerError)
-		return
-	}
 }

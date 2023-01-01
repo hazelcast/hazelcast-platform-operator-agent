@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"os"
-
 	"github.com/google/subcommands"
-
 	"github.com/hazelcast/platform-operator-agent/backup"
+	"github.com/hazelcast/platform-operator-agent/ping"
 	"github.com/hazelcast/platform-operator-agent/restore"
 	"github.com/hazelcast/platform-operator-agent/usercode"
+	"os"
 )
 
 func main() {
@@ -23,6 +22,7 @@ func main() {
 	subcommands.Register(&restore.LocalInHostpathCmd{}, "")
 	subcommands.Register(&restore.LocalInPVCCmd{}, "")
 	subcommands.Register(&restore.BucketToPVCCmd{}, "")
+	subcommands.Register(&ping.Cmd{}, "")
 
 	flag.Parse()
 	ctx := context.Background()
