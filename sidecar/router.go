@@ -238,7 +238,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	for _, e := range endpoints {
 		err := ping(e)
 		if err != nil {
-			errStr := errors.New(fmt.Sprintf("%s is not reachable", e))
+			errStr := fmt.Errorf("%s is not reachable", e)
 			errs = append(errs, errStr)
 			log.Println(errStr)
 		}
