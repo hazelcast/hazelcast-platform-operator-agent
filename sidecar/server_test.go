@@ -1,9 +1,15 @@
-package backup
+package sidecar
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/fileblob"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,14 +18,6 @@ import (
 	"path"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gocloud.dev/blob/fileblob"
-
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
 var exampleTarGzFiles = []fileutil.File{
@@ -85,7 +83,7 @@ func TestBackupHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			bs := &service{tasks: map[uuid.UUID]*task{}}
+			bs := &Service{Tasks: map[uuid.UUID]*task{}}
 
 			err := fileutil.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
 			require.Nil(t, err)
@@ -144,7 +142,7 @@ func TestUploadHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &service{tasks: map[uuid.UUID]*task{}}
+			us := &Service{Tasks: map[uuid.UUID]*task{}}
 			req := httptest.NewRequest(http.MethodPost, "http://request/upload", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
@@ -166,7 +164,7 @@ func TestUploadHandler(t *testing.T) {
 			require.NotEmpty(t, resBody.ID)
 
 			//clean up
-			us.tasks[resBody.ID].cancel()
+			us.Tasks[resBody.ID].cancel()
 		})
 	}
 }
@@ -225,7 +223,7 @@ func TestStatusHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &service{tasks: tt.taskMap}
+			us := &Service{Tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -288,7 +286,7 @@ func TestCancelHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &service{tasks: tt.taskMap}
+			us := &Service{Tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{

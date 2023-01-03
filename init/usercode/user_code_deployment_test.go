@@ -2,6 +2,7 @@ package usercode
 
 import (
 	"context"
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"os"
 	"path"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gocloud.dev/blob/memblob"
 
-	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 
 	_ "gocloud.dev/blob/fileblob"

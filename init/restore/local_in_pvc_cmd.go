@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 	"log"
 	"os"
 	"path"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 
 	_ "gocloud.dev/blob/azureblob"
@@ -68,7 +68,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackupPVC(path.Join(r.BackupBaseDir, backup.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
+	err = copyBackupPVC(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
 		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"log"
 	"os"
 	"path"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 
@@ -57,7 +57,7 @@ func (r *BucketToHostpathCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *BucketToHostpathCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *BucketToHostpathCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore agent...")
 
 	// overwrite config with environment variables

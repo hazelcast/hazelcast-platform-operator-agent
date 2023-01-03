@@ -1,14 +1,11 @@
-package ping
+package sidecar
 
 import (
 	"context"
-	"crypto/x509"
 	"flag"
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-	"golang.org/x/sync/errgroup"
 	"log"
-	"os"
 )
 
 type Cmd struct {
@@ -19,8 +16,8 @@ type Cmd struct {
 	Key          string `envconfig:"BACKUP_KEY"`
 }
 
-func (*Cmd) Name() string     { return "ping" }
-func (*Cmd) Synopsis() string { return "run ping sidecar service" }
+func (*Cmd) Name() string     { return "sidecar" }
+func (*Cmd) Synopsis() string { return "run sidecar service" }
 func (*Cmd) Usage() string    { return "" }
 
 func (p *Cmd) SetFlags(f *flag.FlagSet) {
@@ -32,34 +29,17 @@ func (p *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (p *Cmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting ping agent")
+	log.Println("Starting sidecar agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("backup", p); err != nil {
+	if err := envconfig.Process("sidecar", p); err != nil {
 		log.Println(err)
 		return subcommands.ExitFailure
 	}
 
-	ca, err := os.ReadFile(p.CA)
+	err := startServer(p)
 	if err != nil {
-		log.Println(err)
 		return subcommands.ExitFailure
 	}
-
-	pool := x509.NewCertPool()
-	if ok := pool.AppendCertsFromPEM(ca); !ok {
-		log.Println("failed to find any PEM data in ca input")
-		return subcommands.ExitFailure
-	}
-
-	var g errgroup.Group
-	g.Go(RunServerWithTLS(p, pool))
-	g.Go(RunHealthCheckServer(p))
-
-	if err = g.Wait(); err != nil {
-		log.Println(err)
-		return subcommands.ExitFailure
-	}
-
 	return subcommands.ExitSuccess
 }

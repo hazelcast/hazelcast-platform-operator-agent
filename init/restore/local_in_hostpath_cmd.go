@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 	"io"
 	"log"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 
 	_ "gocloud.dev/blob/azureblob"
@@ -70,7 +70,7 @@ func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackup(path.Join(r.BackupBaseDir, backup.DirName, r.BackupFolderName), r.BackupBaseDir, id)
+	err = copyBackup(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
 		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure

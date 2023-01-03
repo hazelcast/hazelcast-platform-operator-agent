@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"log"
 	"os"
 	"path"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/hazelcast/platform-operator-agent/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
@@ -38,7 +38,7 @@ func (r *BucketToPVCCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *BucketToPVCCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore agent...")
 
 	// overwrite config with environment variables
@@ -101,14 +101,14 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...inte
 }
 
 func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
-	bucket, err := bucket.OpenBucket(ctx, src, secretData)
+	b, err := bucket.OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
-	defer bucket.Close()
+	defer b.Close()
 
 	// find keys, they are sorted
-	keys, err := find(ctx, bucket)
+	keys, err := find(ctx, b)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 	}
 
 	log.Println("Restoring", keys[id])
-	if err = saveFromArchive(ctx, bucket, keys[id], dst); err != nil {
+	if err = saveFromArchive(ctx, b, keys[id], dst); err != nil {
 		return err
 	}
 

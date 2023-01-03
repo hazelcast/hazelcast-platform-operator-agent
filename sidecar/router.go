@@ -1,12 +1,15 @@
-package backup
+package sidecar
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
 	"log"
+	"net"
 	"net/http"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -14,24 +17,28 @@ import (
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
 
-// service handles requests and keeps track of tasks
-type service struct {
-	mu    sync.RWMutex
-	tasks map[uuid.UUID]*task
+const (
+	DirName = "hot-backup"
+)
+
+// Service handles requests and keeps track of Tasks
+type Service struct {
+	Mu    sync.RWMutex
+	Tasks map[uuid.UUID]*task
 }
 
-// Req is a backup service backup method request
+// Req is a backup Service backup method request
 type Req struct {
 	BackupBaseDir string `json:"backup_base_dir"`
 	MemberID      int    `json:"member_id"`
 }
 
-// Resp is a backup service backup method response
+// Resp is a backup Service backup method response
 type Resp struct {
 	Backups []string `json:"backups"`
 }
 
-func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req Req
@@ -80,7 +87,7 @@ func (s *service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	serverutil.HttpJSON(w, Resp{Backups: backups})
 }
 
-// UploadReq is a backup service upload method request
+// UploadReq is a backup Service upload method request
 type UploadReq struct {
 	BucketURL       string `json:"bucket_url"`
 	BackupBaseDir   string `json:"backup_base_dir"`
@@ -89,12 +96,12 @@ type UploadReq struct {
 	MemberID        int    `json:"member_id"`
 }
 
-// UploadResp ia a backup service upload method response
+// UploadResp ia a backup Service upload method response
 type UploadResp struct {
 	ID uuid.UUID `json:"id"`
 }
 
-func (s *service) uploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	var req UploadReq
@@ -118,9 +125,9 @@ func (s *service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		cancel: cancel,
 	}
 
-	s.mu.Lock()
-	s.tasks[ID] = t
-	s.mu.Unlock()
+	s.Mu.Lock()
+	s.Tasks[ID] = t
+	s.Mu.Unlock()
 
 	// run upload in background
 	log.Println("UPLOAD", ID, "Starting new task")
@@ -129,14 +136,14 @@ func (s *service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	serverutil.HttpJSON(w, UploadResp{ID: ID})
 }
 
-// StatusResp is a backup service task status response
+// StatusResp is a backup Service task status response
 type StatusResp struct {
 	Status    string `json:"status"`
 	Message   string `json:"message,omitempty"`
 	BackupKey string `json:"backup_key,omitempty"`
 }
 
-func (s *service) statusHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	vars := mux.Vars(r)
@@ -147,43 +154,43 @@ func (s *service) statusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.RLock()
-	t, ok := s.tasks[ID]
-	s.mu.RUnlock()
+	s.Mu.RLock()
+	t, ok := s.Tasks[ID]
+	s.Mu.RUnlock()
 
 	// unknown task
 	if !ok {
-		log.Println("STATUS", ID, "Task not found")
+		log.Println("STATUS", ID, "task not found")
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
-		log.Println("STATUS", ID, "Task in progress")
+		log.Println("STATUS", ID, "task in progress")
 		serverutil.HttpJSON(w, StatusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
-		log.Println("STATUS", ID, "Task canceled")
+		log.Println("STATUS", ID, "task canceled")
 		serverutil.HttpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
-		log.Println("STATUS", ID, "Task failed")
+		log.Println("STATUS", ID, "task failed")
 		serverutil.HttpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
-	log.Println("STATUS", ID, "Task successful")
+	log.Println("STATUS", ID, "task successful")
 	serverutil.HttpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
-func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
 	vars := mux.Vars(r)
@@ -194,11 +201,11 @@ func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.RLock()
-	t, ok := s.tasks[ID]
-	s.mu.RUnlock()
+	s.Mu.RLock()
+	t, ok := s.Tasks[ID]
+	s.Mu.RUnlock()
 	if !ok {
-		log.Println("CANCEL", ID, "Task not found")
+		log.Println("CANCEL", ID, "task not found")
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
@@ -208,6 +215,50 @@ func (s *service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t.cancel()
 }
 
-func (s *service) healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
+type Request struct {
+	Endpoints string `json:"endpoints"`
+}
+
+type Response struct {
+	Success bool `json:"success"`
+}
+
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
+	var req Request
+	if err := serverutil.DecodeBody(r, &req); err != nil {
+		log.Println("PING", "Error occurred while parsing body:", err)
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+
+	var errs []error
+	endpoints := strings.Split(req.Endpoints, ",")
+	for _, e := range endpoints {
+		err := ping(e)
+		if err != nil {
+			errStr := errors.New(fmt.Sprintf("%s is not reachable", e))
+			errs = append(errs, errStr)
+			log.Println(errStr)
+		}
+	}
+
+	if len(errs) > 0 {
+		serverutil.HttpJSON(w, Response{Success: false})
+	} else {
+		serverutil.HttpJSON(w, Response{Success: true})
+	}
+}
+
+func ping(endpoint string) error {
+	_, err := net.Dial("tcp", endpoint)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }

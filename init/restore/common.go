@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 	"io"
 	"io/fs"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"gocloud.dev/blob"
 )
 
@@ -169,5 +169,5 @@ func createArchiveFile(dir, baseDir, outPath string) error {
 	}
 	defer outFile.Close()
 
-	return backup.CreateArchive(outFile, dir, baseDir)
+	return sidecar.CreateArchive(outFile, dir, baseDir)
 }
