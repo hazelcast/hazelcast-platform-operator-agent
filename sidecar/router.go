@@ -215,20 +215,20 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t.cancel()
 }
 
-type Request struct {
+type DialRequest struct {
 	Endpoints string `json:"endpoints"`
 }
 
-type Response struct {
+type DialResponse struct {
 	Success bool `json:"success"`
 }
 
-func pingHandler(w http.ResponseWriter, r *http.Request) {
+func dialHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method, r.URL)
 
-	var req Request
+	var req DialRequest
 	if err := serverutil.DecodeBody(r, &req); err != nil {
-		log.Println("PING", "Error occurred while parsing body:", err)
+		log.Println("DIAL", "Error occurred while parsing body:", err)
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
@@ -236,7 +236,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	var errs []error
 	endpoints := strings.Split(req.Endpoints, ",")
 	for _, e := range endpoints {
-		err := ping(e)
+		err := tryDial(e)
 		if err != nil {
 			errStr := fmt.Errorf("%s is not reachable", e)
 			errs = append(errs, errStr)
@@ -245,13 +245,13 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(errs) > 0 {
-		serverutil.HttpJSON(w, Response{Success: false})
+		serverutil.HttpJSON(w, DialResponse{Success: false})
 	} else {
-		serverutil.HttpJSON(w, Response{Success: true})
+		serverutil.HttpJSON(w, DialResponse{Success: true})
 	}
 }
 
-func ping(endpoint string) error {
+func tryDial(endpoint string) error {
 	_, err := net.Dial("tcp", endpoint)
 	if err != nil {
 		return err
