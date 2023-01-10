@@ -1,5 +1,5 @@
-VERSION ?= 0.1.14
-IMAGE_TAG_BASE ?= kutluhanhazelcast/platform-operator-agent
+VERSION ?= latest-snapshot
+IMAGE_TAG_BASE ?= hazelcast/platform-operator-agent
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 
 docker-build:
