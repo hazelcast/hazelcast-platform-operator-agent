@@ -3,9 +3,10 @@ package sidecar
 import (
 	"context"
 	"flag"
+	"log"
+
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-	"log"
 )
 
 type Cmd struct {

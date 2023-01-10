@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/sidecar"
 	"io"
 	"io/fs"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"strings"
 
 	"gocloud.dev/blob"
+
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
 func saveFromArchive(ctx context.Context, bucket *blob.Bucket, key, target string) error {

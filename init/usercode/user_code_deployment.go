@@ -3,7 +3,6 @@ package usercode
 import (
 	"context"
 	"flag"
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"io"
 	"log"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 

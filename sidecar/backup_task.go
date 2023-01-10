@@ -2,11 +2,12 @@ package sidecar
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"log"
 	"path"
 
 	"github.com/google/uuid"
+
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 

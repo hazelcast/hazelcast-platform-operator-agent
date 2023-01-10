@@ -4,12 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gocloud.dev/blob/fileblob"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +12,13 @@ import (
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/fileblob"
 )
 
 var exampleTarGzFiles = []fileutil.File{

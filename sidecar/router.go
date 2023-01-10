@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
 	"log"
 	"net"
 	"net/http"
@@ -14,7 +13,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
 )
 
 const (
@@ -220,7 +221,8 @@ type DialRequest struct {
 }
 
 type DialResponse struct {
-	Success bool `json:"success"`
+	Success       bool     `json:"success"`
+	ErrorMessages []string `json:"error_messages"`
 }
 
 func dialHandler(w http.ResponseWriter, r *http.Request) {
@@ -233,21 +235,22 @@ func dialHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var errs []error
+	dialResp := DialResponse{Success: true}
 	endpoints := strings.Split(req.Endpoints, ",")
 	for _, e := range endpoints {
 		err := tryDial(e)
 		if err != nil {
-			errStr := fmt.Errorf("%s is not reachable", e)
-			errs = append(errs, errStr)
+			dialResp.Success = false
+			errStr := fmt.Sprintf("%s is not reachable", e)
+			dialResp.ErrorMessages = append(dialResp.ErrorMessages, errStr)
 			log.Println(errStr)
 		}
 	}
 
-	if len(errs) > 0 {
-		serverutil.HttpJSON(w, DialResponse{Success: false})
+	if len(dialResp.ErrorMessages) > 0 {
+		serverutil.HttpJSON(w, dialResp)
 	} else {
-		serverutil.HttpJSON(w, DialResponse{Success: true})
+		serverutil.HttpJSON(w, dialResp)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"log"
 	"os"
 	"path"
@@ -14,13 +13,13 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-	"github.com/hazelcast/platform-operator-agent/internal/uri"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
+
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 const restoreLock = "restore_lock"

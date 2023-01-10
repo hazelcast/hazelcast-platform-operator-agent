@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hazelcast/platform-operator-agent/sidecar"
 	"log"
 	"os"
 	"path"
@@ -12,12 +11,12 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
 type LocalInPVCCmd struct {
