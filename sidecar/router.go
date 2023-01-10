@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -237,15 +238,23 @@ func dialHandler(w http.ResponseWriter, r *http.Request) {
 
 	dialResp := DialResponse{Success: true}
 	endpoints := strings.Split(req.Endpoints, ",")
+
+	var wg sync.WaitGroup
 	for _, e := range endpoints {
-		err := tryDial(e)
-		if err != nil {
-			dialResp.Success = false
-			errStr := fmt.Sprintf("%s is not reachable", e)
-			dialResp.ErrorMessages = append(dialResp.ErrorMessages, errStr)
-			log.Println(errStr)
-		}
+		wg.Add(1)
+		e := e
+		go func() {
+			defer wg.Done()
+			err := tryDial(e)
+			if err != nil {
+				dialResp.Success = false
+				errStr := fmt.Sprintf("%s is not reachable", e)
+				dialResp.ErrorMessages = append(dialResp.ErrorMessages, errStr)
+				log.Println(errStr)
+			}
+		}()
 	}
+	wg.Wait()
 
 	if len(dialResp.ErrorMessages) > 0 {
 		serverutil.HttpJSON(w, dialResp)
@@ -255,7 +264,7 @@ func dialHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func tryDial(endpoint string) error {
-	_, err := net.Dial("tcp", endpoint)
+	_, err := net.DialTimeout("tcp", endpoint, 3*time.Second)
 	if err != nil {
 		return err
 	}
