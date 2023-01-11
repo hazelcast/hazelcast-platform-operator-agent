@@ -13,7 +13,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
@@ -36,7 +36,7 @@ func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *Cmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting user code deployment agent...")
 
 	// overwrite config with environment variables

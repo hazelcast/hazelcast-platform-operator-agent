@@ -1,4 +1,4 @@
-package backup
+package sidecar
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/hazelcast/platform-operator-agent/bucket"
+
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 

@@ -13,14 +13,13 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-
-	"github.com/hazelcast/platform-operator-agent/bucket"
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-	"github.com/hazelcast/platform-operator-agent/internal/uri"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
+
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 const restoreLock = "restore_lock"
@@ -57,7 +56,7 @@ func (r *BucketToHostpathCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
-func (r *BucketToHostpathCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *BucketToHostpathCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	log.Println("Starting restore agent...")
 
 	// overwrite config with environment variables

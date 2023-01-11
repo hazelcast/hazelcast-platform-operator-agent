@@ -7,12 +7,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
 
-	"github.com/hazelcast/platform-operator-agent/bucket"
+	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-
-	_ "gocloud.dev/blob/fileblob"
 )
 
 func TestDownloadClassJars(t *testing.T) {

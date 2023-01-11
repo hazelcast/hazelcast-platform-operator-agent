@@ -11,13 +11,12 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
-
-	"github.com/hazelcast/platform-operator-agent/backup"
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
-
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
+
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
 type LocalInPVCCmd struct {
@@ -68,7 +67,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackupPVC(path.Join(r.BackupBaseDir, backup.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
+	err = copyBackupPVC(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
 		log.Println("Copy backup failed", err)
 		return subcommands.ExitFailure

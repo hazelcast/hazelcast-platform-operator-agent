@@ -15,8 +15,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hazelcast/platform-operator-agent/backup"
 	"gocloud.dev/blob"
+
+	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
 func saveFromArchive(ctx context.Context, bucket *blob.Bucket, key, target string) error {
@@ -169,5 +170,5 @@ func createArchiveFile(dir, baseDir, outPath string) error {
 	}
 	defer outFile.Close()
 
-	return backup.CreateArchive(outFile, dir, baseDir)
+	return sidecar.CreateArchive(outFile, dir, baseDir)
 }
