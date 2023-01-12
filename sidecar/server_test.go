@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-logr/logr"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -84,7 +85,7 @@ func TestBackupHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			bs := &Service{Tasks: map[uuid.UUID]*task{}}
+			bs := &Service{Tasks: map[uuid.UUID]*task{}, Logger: logr.Logger{}}
 
 			err := fileutil.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
 			require.Nil(t, err)

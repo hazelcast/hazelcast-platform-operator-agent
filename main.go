@@ -22,12 +22,12 @@ func main() {
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
-	subcommands.Register(&usercode.Cmd{Logger: log.WithName("User Code Deployment")}, "")
-	subcommands.Register(&restore.BucketToHostpathCmd{Logger: log.WithName("Restore from Bucket to Hostpath")}, "")
-	subcommands.Register(&restore.LocalInHostpathCmd{Logger: log.WithName("Restore from Local in Hostpath")}, "")
-	subcommands.Register(&restore.LocalInPVCCmd{Logger: log.WithName("Restore from Local in PVC")}, "")
-	subcommands.Register(&restore.BucketToPVCCmd{Logger: log.WithName("Restore from Bucket to PVC")}, "")
-	subcommands.Register(&sidecar.Cmd{Logger: log.WithName("Sidecar")}, "")
+	subcommands.Register(&usercode.Cmd{Logger: log.WithName("user code deployment")}, "")
+	subcommands.Register(&restore.BucketToHostpathCmd{Logger: log.WithName("restore from bucket to hostpath")}, "")
+	subcommands.Register(&restore.LocalInHostpathCmd{Logger: log.WithName("restore from Local in hostpath")}, "")
+	subcommands.Register(&restore.LocalInPVCCmd{Logger: log.WithName("restore from local in PVC")}, "")
+	subcommands.Register(&restore.BucketToPVCCmd{Logger: log.WithName("restore from bucket to PVC")}, "")
+	subcommands.Register(&sidecar.Cmd{Logger: log.WithName("sidecar")}, "")
 
 	flag.Parse()
 
