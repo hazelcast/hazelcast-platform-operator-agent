@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-logr/logr"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -85,9 +85,11 @@ func TestBackupHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			bs := &Service{Tasks: map[uuid.UUID]*task{}, Logger: logr.Logger{}}
+			log, err := logger.New()
+			require.Nil(t, err)
+			bs := &Service{Tasks: map[uuid.UUID]*task{}, Logger: log}
 
-			err := fileutil.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
+			err = fileutil.CreateFiles(path.Join(tt.body.BackupBaseDir, DirName), tt.files, false)
 			require.Nil(t, err)
 			defer os.RemoveAll(tt.body.BackupBaseDir)
 
