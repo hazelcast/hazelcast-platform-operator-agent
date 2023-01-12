@@ -164,7 +164,7 @@ func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// unknown task
 	if !ok {
-		logger.Error(fmt.Errorf("task not found"), "task id", ID.ID())
+		logger.Error(fmt.Errorf("task not found"), "", "task id", ID)
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
