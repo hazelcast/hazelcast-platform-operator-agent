@@ -20,4 +20,6 @@ COPY --from=builder /app/platform-operator-agent /platform-operator-agent
 
 EXPOSE 8080
 
+USER 65532:65532
+
 ENTRYPOINT ["/platform-operator-agent"]
