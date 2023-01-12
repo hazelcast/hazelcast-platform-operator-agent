@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -92,7 +91,6 @@ func allFilesMarkedToBeDeleted(files []fs.DirEntry, dir string) bool {
 }
 
 func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, baseDirName string) error {
-	log.Println("Uploading", backupDir, name)
 	w, err := bucket.NewWriter(ctx, name, nil)
 	if err != nil {
 		return err

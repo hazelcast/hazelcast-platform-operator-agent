@@ -3,7 +3,7 @@ package sidecar
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -15,19 +15,23 @@ import (
 func startServer(s *Cmd) error {
 	ca, err := os.ReadFile(s.CA)
 	if err != nil {
-		log.Println(err)
+		s.Logger.Error(err, "error while reading CA")
 		return err
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(ca); !ok {
-		log.Println("failed to find any PEM data in ca input")
+		err = fmt.Errorf("failed to find any PEM data in ca input")
+		s.Logger.Error(err, "")
 		return err
 	}
 
 	backupService := Service{
-		Tasks: make(map[uuid.UUID]*task),
+		Tasks:  make(map[uuid.UUID]*task),
+		Logger: s.Logger,
 	}
+
+	dialService := DialService{Logger: s.Logger}
 
 	var g errgroup.Group
 	g.Go(func() error {
@@ -36,7 +40,7 @@ func startServer(s *Cmd) error {
 		router.HandleFunc("/upload", backupService.uploadHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", backupService.statusHandler).Methods("GET")
 		router.HandleFunc("/upload/{id}", backupService.cancelHandler).Methods("DELETE")
-		router.HandleFunc("/dial", dialHandler).Methods("POST")
+		router.HandleFunc("/dial", dialService.dialHandler).Methods("POST")
 		router.HandleFunc("/health", healthcheckHandler)
 		server := &http.Server{
 			Addr:    s.HTTPSAddress,
@@ -56,7 +60,7 @@ func startServer(s *Cmd) error {
 	})
 
 	if err = g.Wait(); err != nil {
-		log.Println(err)
+		s.Logger.Error(err, "an error occurred while setting up server")
 		return err
 	}
 

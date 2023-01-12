@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"github.com/go-logr/logr"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +24,7 @@ type LocalInPVCCmd struct {
 	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
+	Logger                   logr.Logger
 }
 
 func (*LocalInPVCCmd) Name() string     { return "restore_pvc_local" }
@@ -40,50 +41,50 @@ func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting restore pvc local agent...")
+	r.Logger.Info("starting restore pvc local agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restoreLocal", r); err != nil {
-		log.Println(err)
+		r.Logger.Error(err, "an error occurred while processing config from env")
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		log.Println("Invalid hostname, need to conform to statefulset naming scheme")
+		r.Logger.Error(fmt.Errorf("need to conform to statefulset naming scheme"), "invalid hostname")
 		return subcommands.ExitFailure
 	}
 
 	id, err := parseID(r.Hostname)
 	if err != nil {
-		log.Println("Parse error", err.Error())
+		r.Logger.Error(err, "parse error")
 		return subcommands.ExitFailure
 	}
 
 	lock := filepath.Join(r.BackupBaseDir, lockFileName(r.RestoreID, id))
 
-	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
-		log.Println("Restore lock exists, exiting")
+		r.Logger.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
 	err = copyBackupPVC(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
-		log.Println("Copy backup failed", err)
+		r.Logger.Error(err, "copy backup failed")
 		return subcommands.ExitFailure
 	}
 
-	if err := cleanupLocks(r.BackupBaseDir, id); err != nil {
-		log.Println("Error cleaning up locks", err)
+	if err = cleanupLocks(r.BackupBaseDir, id); err != nil {
+		r.Logger.Error(err, "error cleaning up locks")
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
+		r.Logger.Error(err, "lock file creation error")
 		return subcommands.ExitFailure
 	}
 
-	log.Println("Restore successful")
+	r.Logger.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/go-logr/logr"
 	"log"
 	"os"
 	"path"
@@ -23,6 +24,7 @@ type BucketToPVCCmd struct {
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
 	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
 	RestoreID   string `envconfig:"RESTORE_ID"`
+	Logger      logr.Logger
 }
 
 func (*BucketToPVCCmd) Name() string     { return "restore_pvc" }
@@ -39,16 +41,16 @@ func (r *BucketToPVCCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting restore agent...")
+	r.Logger.Info("starting restore agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restore", r); err != nil {
-		log.Println(err)
+		r.Logger.Error(err, "an error occurred while processing config from env")
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		log.Println("Invalid hostname, need to conform to statefulset naming scheme")
+		r.Logger.Error(fmt.Errorf("need to conform to statefulset naming scheme"), "invalid hostname")
 		return subcommands.ExitFailure
 	}
 
@@ -56,51 +58,51 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Restore agent ID:", id)
+	r.Logger.Info("agent id parse successfully", "agent id", id)
 
 	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Bucket:", bucketURI)
+	r.Logger.Info("bucket uri normalized successfully", "bucket URI", bucketURI)
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
-	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
-		log.Println("Restore lock exists, exiting")
+		r.Logger.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
-	log.Println("Reading secret:", r.SecretName)
+	r.Logger.Info("reading secret", "secret name", r.SecretName)
 	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
-		log.Println("error fetching secret data", err)
+		r.Logger.Error(err, "error fetching secret data")
 		return subcommands.ExitFailure
 	}
 
 	// run download process
 	log.Println("Starting download:", r.Destination, id)
-	if err := downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
-		log.Println("download error", err)
+	if err = downloadFromBucketToPvc(ctx, r.Logger, bucketURI, r.Destination, id, secretData); err != nil {
+		r.Logger.Error(err, "download error")
 		return subcommands.ExitFailure
 	}
 
-	if err := cleanupLocks(r.Destination, id); err != nil {
-		log.Println("Error cleaning up locks", err)
+	if err = cleanupLocks(r.Destination, id); err != nil {
+		r.Logger.Error(err, "error cleaning up locks")
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
+		r.Logger.Error(err, "lock file creation error")
 		return subcommands.ExitFailure
 	}
 
-	log.Println("Restore successful")
+	r.Logger.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 
-func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
+func downloadFromBucketToPvc(ctx context.Context, logger logr.Logger, src, dst string, id int, secretData map[string][]byte) error {
 	b, err := bucket.OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
@@ -131,7 +133,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		}
 	}
 
-	log.Println("Restoring", keys[id])
+	logger.Info("restoring ", "key", keys[id])
 	if err = saveFromArchive(ctx, b, keys[id], dst); err != nil {
 		return err
 	}

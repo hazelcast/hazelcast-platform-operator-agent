@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/go-logr/logr"
 	"net"
 	"net/http"
 	"path"
@@ -25,8 +25,9 @@ const (
 
 // Service handles requests and keeps track of Tasks
 type Service struct {
-	Mu    sync.RWMutex
-	Tasks map[uuid.UUID]*task
+	Mu     sync.RWMutex
+	Tasks  map[uuid.UUID]*task
+	Logger logr.Logger
 }
 
 // Req is a backup Service backup method request
@@ -41,11 +42,11 @@ type Resp struct {
 }
 
 func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
+	logger := s.Logger.WithName("listBackupsHandler")
 
 	var req Req
 	if err := serverutil.DecodeBody(r, &req); err != nil {
-		log.Println("BACKUP", "Error occurred while parsing body:", err)
+		logger.Error(err, "error occurred while parsing body")
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
@@ -53,7 +54,7 @@ func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	backupsDir := path.Join(req.BackupBaseDir, DirName)
 	backupSeqs, err := fileutil.FolderSequence(backupsDir)
 	if err != nil {
-		log.Println("BACKUP", "Error reading backup sequence directory", err)
+		logger.Error(err, "error reading backup sequence directory")
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
@@ -63,27 +64,28 @@ func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		backupDir := path.Join(backupsDir, backupSeq.Name())
 		backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 		if err != nil {
-			log.Println("BACKUP", "Error reading backup directory", err)
+			logger.Error(err, "error reading backup directory")
 			serverutil.HttpError(w, http.StatusBadRequest)
 			return
 		}
 
 		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
-			log.Println("BACKUP", "Invalid UUID")
+			err = fmt.Errorf("invalid UUID")
+			logger.Error(err, "")
 			serverutil.HttpError(w, http.StatusBadRequest)
 			return
 		}
 
 		// If there is only one backup, members are isolated. No need for memberID
 		if len(backupUUIDs) == 1 {
-			log.Println("BACKUP", "Skip member ID")
+			logger.Info("skip member ID")
 			req.MemberID = 0
 		}
 
 		backupPath := path.Join(backupSeq.Name(), backupUUIDs[req.MemberID].Name())
 		backups = append(backups, backupPath)
 
-		log.Println("BACKUP", "Found backup", backupPath)
+		logger.Info("found backup", "backup path", backupPath)
 	}
 
 	serverutil.HttpJSON(w, Resp{Backups: backups})
@@ -104,18 +106,18 @@ type UploadResp struct {
 }
 
 func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
+	logger := s.Logger.WithName("uploadHandler")
 
 	var req UploadReq
 	if err := serverutil.DecodeBody(r, &req); err != nil {
-		log.Println("UPLOAD", "Error occurred while parsing body:", err)
+		logger.Error(err, "error occurred while parsing body")
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
-		log.Println("UPLOAD", "Error occurred while generating new UUID:", err)
+		logger.Error(err, "error occurred while generating new UUID")
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
@@ -132,8 +134,8 @@ func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	s.Mu.Unlock()
 
 	// run upload in background
-	log.Println("UPLOAD", ID, "Starting new task")
-	go t.process(ID)
+	logger.Info("Starting new task", "task id", ID)
+	go t.process(logger, ID)
 
 	serverutil.HttpJSON(w, UploadResp{ID: ID})
 }
@@ -146,7 +148,7 @@ type StatusResp struct {
 }
 
 func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
+	logger := s.Logger.WithName("statusHandler")
 
 	vars := mux.Vars(r)
 
@@ -162,38 +164,38 @@ func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// unknown task
 	if !ok {
-		log.Println("STATUS", ID, "task not found")
+		logger.Error(fmt.Errorf("task not found"), "task id", ID.ID())
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
-		log.Println("STATUS", ID, "task in progress")
+		logger.Info("task is in progress: ", "task id", ID)
 		serverutil.HttpJSON(w, StatusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
-		log.Println("STATUS", ID, "task canceled")
+		logger.Info("task is canceled: ", "task id", ID)
 		serverutil.HttpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
-		log.Println("STATUS", ID, "task failed")
+		logger.Info("task is failed", "task id", ID)
 		serverutil.HttpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
-	log.Println("STATUS", ID, "task successful")
+	logger.Info("task is successful", "task id", ID)
 	serverutil.HttpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
 func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
+	logger := s.Logger.WithName("cancelHandler")
 
 	vars := mux.Vars(r)
 
@@ -207,13 +209,13 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.Tasks[ID]
 	s.Mu.RUnlock()
 	if !ok {
-		log.Println("CANCEL", ID, "task not found")
+		logger.Error(fmt.Errorf("task not found"), "task ID", ID.ID())
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 
 	// send signal to stop task
-	log.Println("CANCEL", ID, "Canceling task")
+	logger.Info("canceling task", "task id", ID)
 	t.cancel()
 }
 
@@ -226,12 +228,16 @@ type DialResponse struct {
 	ErrorMessages []string `json:"error_messages"`
 }
 
-func dialHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
+type DialService struct {
+	Logger logr.Logger
+}
+
+func (d *DialService) dialHandler(w http.ResponseWriter, r *http.Request) {
+	logger := d.Logger.WithName("dialHandler")
 
 	var req DialRequest
 	if err := serverutil.DecodeBody(r, &req); err != nil {
-		log.Println("DIAL", "Error occurred while parsing body:", err)
+		logger.Error(err, "error occurred while parsing body")
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
@@ -248,9 +254,8 @@ func dialHandler(w http.ResponseWriter, r *http.Request) {
 			err := tryDial(e)
 			if err != nil {
 				dialResp.Success = false
-				errStr := fmt.Sprintf("%s is not reachable", e)
-				dialResp.ErrorMessages = append(dialResp.ErrorMessages, errStr)
-				log.Println(errStr)
+				dialResp.ErrorMessages = append(dialResp.ErrorMessages, fmt.Sprintf("%s is not reachable", e))
+				logger.Error(fmt.Errorf("target is not reachable"), "target", e)
 			}
 		}()
 	}

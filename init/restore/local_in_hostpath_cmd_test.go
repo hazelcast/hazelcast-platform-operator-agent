@@ -1,6 +1,7 @@
 package restore
 
 import (
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"os"
 	"path"
 	"testing"
@@ -174,7 +175,10 @@ func TestCopyBackup(t *testing.T) {
 			require.Nil(t, err)
 
 			//test
-			err = copyBackup(backupDir, destDir, tt.memberID)
+			log, err := logger.New()
+			require.Nil(t, err)
+
+			err = copyBackup(log, backupDir, destDir, tt.memberID)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return

@@ -3,8 +3,8 @@ package usercode
 import (
 	"context"
 	"flag"
+	"github.com/go-logr/logr"
 	"io"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,6 +23,7 @@ type Cmd struct {
 	Bucket      string `envconfig:"UCD_BUCKET"`
 	Destination string `envconfig:"UCD_DESTINATION"`
 	SecretName  string `envconfig:"UCD_SECRET_NAME"`
+	Logger      logr.Logger
 }
 
 func (*Cmd) Name() string     { return "user-code-deployment" }
@@ -37,18 +38,18 @@ func (r *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting user code deployment agent...")
+	r.Logger.Info("starting user code deployment agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("ucd", r); err != nil {
-		log.Println(err)
+		r.Logger.Error(err, "an error occurred while processing config from env")
 		return subcommands.ExitFailure
 	}
 
 	lock := filepath.Join(r.Destination, usercodeLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
-		log.Println("Lock file exists, exiting")
+		r.Logger.Error(err, "lock file exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
@@ -56,24 +57,24 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Bucket:", bucketURI)
+	r.Logger.Info("bucket URI normalized successfully", "bucket URI", bucketURI)
 
-	log.Println("Reading secret:", r.SecretName)
+	r.Logger.Info("reading secret", "secret name", r.SecretName)
 	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
-		log.Println("error fetching secret data", err)
+		r.Logger.Error(err, "error fetching secret data")
 		return subcommands.ExitFailure
 	}
 
 	// run download process
-	log.Println("Starting download:", r.Destination)
+	r.Logger.Info("starting download", "destination", r.Destination)
 	if err = downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
-		log.Println("download error", err)
+		r.Logger.Error(err, "download error")
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
+		r.Logger.Error(err, "lock file creation error")
 		return subcommands.ExitFailure
 	}
 
