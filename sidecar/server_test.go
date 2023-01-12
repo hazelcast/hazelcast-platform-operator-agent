@@ -146,7 +146,9 @@ func TestUploadHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &Service{Tasks: map[uuid.UUID]*task{}}
+			log, err := logger.New()
+			require.Nil(t, err)
+			us := &Service{Tasks: map[uuid.UUID]*task{}, Logger: log}
 			req := httptest.NewRequest(http.MethodPost, "http://request/upload", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
@@ -227,7 +229,10 @@ func TestStatusHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &Service{Tasks: tt.taskMap}
+			log, err := logger.New()
+			require.Nil(t, err)
+
+			us := &Service{Tasks: tt.taskMap, Logger: log}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -247,7 +252,7 @@ func TestStatusHandler(t *testing.T) {
 			status := &StatusResp{}
 			defer res.Body.Close()
 			d := json.NewDecoder(res.Body)
-			err := d.Decode(status)
+			err = d.Decode(status)
 			require.Nil(t, err)
 			require.Equal(t, tt.wantStatus, status.Status)
 
@@ -290,7 +295,10 @@ func TestCancelHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
-			us := &Service{Tasks: tt.taskMap}
+			log, err := logger.New()
+			require.Nil(t, err)
+
+			us := &Service{Tasks: tt.taskMap, Logger: log}
 			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
