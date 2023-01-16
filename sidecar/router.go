@@ -217,6 +217,30 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	t.cancel()
 }
 
+func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method, r.URL)
+
+	vars := mux.Vars(r)
+
+	ID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+
+	s.Mu.RLock()
+	if _, ok := s.Tasks[ID]; !ok {
+		s.Mu.RUnlock()
+		log.Println("DELETE", ID, "task not found")
+		serverutil.HttpError(w, http.StatusNotFound)
+		return
+	}
+	delete(s.Tasks, ID)
+	s.Mu.RUnlock()
+
+	log.Println("DELETE", ID, "Deleted task")
+}
+
 type DialRequest struct {
 	Endpoints string `json:"endpoints"`
 }
