@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/go-logr/logr"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,15 +15,17 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
+
+var localInPVCLog = logger.New().Named("")
 
 type LocalInPVCCmd struct {
 	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
 	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
-	Logger                   logr.Logger
 }
 
 func (*LocalInPVCCmd) Name() string     { return "restore_pvc_local" }
@@ -41,22 +42,22 @@ func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	r.Logger.Info("starting restore pvc local agent...")
+	localInPVCLog.Info("starting restore pvc local agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restoreLocal", r); err != nil {
-		r.Logger.Error(err, "an error occurred while processing config from env")
+		localInPVCLog.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		r.Logger.Error(fmt.Errorf("need to conform to statefulset naming scheme"), "invalid hostname")
+		localInHostpathLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
 	id, err := parseID(r.Hostname)
 	if err != nil {
-		r.Logger.Error(err, "parse error")
+		localInPVCLog.Error("parse error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
@@ -64,27 +65,27 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
-		r.Logger.Info("restore lock exists, exiting")
+		localInPVCLog.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
 	err = copyBackupPVC(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
-		r.Logger.Error(err, "copy backup failed")
+		localInPVCLog.Error("copy backup failed: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = cleanupLocks(r.BackupBaseDir, id); err != nil {
-		r.Logger.Error(err, "error cleaning up locks")
+		localInPVCLog.Error("error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
-		r.Logger.Error(err, "lock file creation error")
+		localInPVCLog.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	r.Logger.Info("restore successful")
+	localInPVCLog.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 

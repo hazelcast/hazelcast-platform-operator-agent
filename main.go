@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"os"
 
 	"github.com/google/subcommands"
@@ -13,21 +12,16 @@ import (
 )
 
 func main() {
-	log, err := logger.New()
-	if err != nil {
-		panic(err)
-	}
-
 	subcommands.Register(subcommands.HelpCommand(), "")
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
-	subcommands.Register(&usercode.Cmd{Logger: log.WithName("user code deployment")}, "")
-	subcommands.Register(&restore.BucketToHostpathCmd{Logger: log.WithName("restore from bucket to hostpath")}, "")
-	subcommands.Register(&restore.LocalInHostpathCmd{Logger: log.WithName("restore from Local in hostpath")}, "")
-	subcommands.Register(&restore.LocalInPVCCmd{Logger: log.WithName("restore from local in PVC")}, "")
-	subcommands.Register(&restore.BucketToPVCCmd{Logger: log.WithName("restore from bucket to PVC")}, "")
-	subcommands.Register(&sidecar.Cmd{Logger: log.WithName("sidecar")}, "")
+	subcommands.Register(&usercode.Cmd{}, "")
+	subcommands.Register(&restore.BucketToHostpathCmd{}, "")
+	subcommands.Register(&restore.LocalInHostpathCmd{}, "")
+	subcommands.Register(&restore.LocalInPVCCmd{}, "")
+	subcommands.Register(&restore.BucketToPVCCmd{}, "")
+	subcommands.Register(&sidecar.Cmd{}, "")
 
 	flag.Parse()
 

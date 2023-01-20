@@ -2,7 +2,6 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"os"
 	"path"
 	"strings"
@@ -155,10 +154,8 @@ func TestDownloadToHostpath(t *testing.T) {
 			defer bucket.Close()
 
 			// test
-			log, err := logger.New()
-			require.Nil(t, err)
 
-			err = downloadToHostpath(ctx, log, "file://"+bucketPath, dstPath, tt.id, nil)
+			err = downloadToHostpath(ctx, "file://"+bucketPath, dstPath, tt.id, nil)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return

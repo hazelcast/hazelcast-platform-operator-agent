@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/go-logr/logr"
 	"io"
 	"os"
 	"path"
@@ -18,15 +17,17 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
+
+var localInHostpathLog = logger.New().Named("restore_from_local_in_hostpath")
 
 type LocalInHostpathCmd struct {
 	BackupFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
 	BackupBaseDir    string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname         string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID        string `envconfig:"RESTORE_LOCAL_ID"`
-	Logger           logr.Logger
 }
 
 func (*LocalInHostpathCmd) Name() string     { return "restore_hostpath_local" }
@@ -43,22 +44,22 @@ func (r *LocalInHostpathCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	r.Logger.Info("starting restore hostpath local agent...")
+	localInHostpathLog.Info("starting restore hostpath local agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restoreLocal", r); err != nil {
-		r.Logger.Error(err, "an error occurred while processing config from env")
+		localInHostpathLog.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		r.Logger.Error(fmt.Errorf("need to conform to statefulset naming scheme"), "invalid hostname")
+		localInHostpathLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
 	id, err := parseID(r.Hostname)
 	if err != nil {
-		r.Logger.Error(err, "parse error")
+		localInHostpathLog.Error("parse error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
@@ -66,31 +67,31 @@ func (r *LocalInHostpathCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...in
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
-		r.Logger.Info("restore lock exists, exiting")
+		localInHostpathLog.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackup(r.Logger, path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupFolderName), r.BackupBaseDir, id)
+	err = copyBackup(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupFolderName), r.BackupBaseDir, id)
 	if err != nil {
-		r.Logger.Error(err, "copy backup failed")
+		localInHostpathLog.Error("copy backup failed: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = cleanupLocks(r.BackupBaseDir, id); err != nil {
-		r.Logger.Error(err, "error cleaning up locks")
+		localInHostpathLog.Error("error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
-		r.Logger.Error(err, "lock file creation error")
+		localInHostpathLog.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	r.Logger.Info("restore successful")
+	localInHostpathLog.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 
-func copyBackup(logger logr.Logger, backupDir, destDir string, id int) error {
+func copyBackup(backupDir, destDir string, id int) error {
 	backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ func copyBackup(logger logr.Logger, backupDir, destDir string, id int) error {
 	}
 
 	if backupUUIDs[id].Name() != destBackupUUIDS[id].Name() {
-		logger.Info(fmt.Sprintf("hot-restart folder name %s and backup UUID folder are not the same %s", destBackupUUIDS[id].Name(), backupUUIDs[id].Name()))
+		localInHostpathLog.Info(fmt.Sprintf("hot-restart folder name %s and backup UUID folder are not the same %s", destBackupUUIDS[id].Name(), backupUUIDs[id].Name()))
 	}
 
 	bk := backupUUIDs[id].Name()

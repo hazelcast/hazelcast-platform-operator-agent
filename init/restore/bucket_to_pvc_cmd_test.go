@@ -2,7 +2,6 @@ package restore
 
 import (
 	"context"
-	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"os"
 	"path"
 	"strings"
@@ -113,10 +112,8 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 			defer bucket.Close()
 
 			// test
-			log, err := logger.New()
-			require.Nil(t, err)
 
-			err = downloadFromBucketToPvc(ctx, log, "file://"+bucketPath, dstPath, tt.id, nil)
+			err = downloadFromBucketToPvc(ctx, "file://"+bucketPath, dstPath, tt.id, nil)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return

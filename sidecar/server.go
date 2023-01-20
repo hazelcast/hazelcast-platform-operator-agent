@@ -10,28 +10,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
+
+var serverLog = logger.New().Named("server")
 
 func startServer(s *Cmd) error {
 	ca, err := os.ReadFile(s.CA)
 	if err != nil {
-		s.Logger.Error(err, "error while reading CA")
+		serverLog.Error("error while reading CA: " + err.Error())
 		return err
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(ca); !ok {
 		err = fmt.Errorf("failed to find any PEM data in ca input")
-		s.Logger.Error(err, "")
+		serverLog.Error(err.Error())
 		return err
 	}
 
 	backupService := Service{
-		Tasks:  make(map[uuid.UUID]*task),
-		Logger: s.Logger,
+		Tasks: make(map[uuid.UUID]*task),
 	}
 
-	dialService := DialService{Logger: s.Logger}
+	dialService := DialService{}
 
 	var g errgroup.Group
 	g.Go(func() error {
@@ -60,7 +63,7 @@ func startServer(s *Cmd) error {
 	})
 
 	if err = g.Wait(); err != nil {
-		s.Logger.Error(err, "an error occurred while setting up server")
+		serverLog.Error("an error occurred while setting up server: " + err.Error())
 		return err
 	}
 
