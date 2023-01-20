@@ -226,7 +226,7 @@ func TestStatusHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
 
-			us := &Service{}
+			us := &Service{Tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
@@ -577,6 +577,7 @@ func failedTask(req UploadReq) *task {
 	cancel()
 	return t
 }
+
 func successfulTask(req UploadReq) *task {
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &task{
