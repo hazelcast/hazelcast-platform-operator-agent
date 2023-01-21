@@ -290,7 +290,7 @@ func TestCancelHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
 			us := &Service{Tasks: tt.taskMap}
-			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
+			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("http://request/upload/%s/cancel", tt.reqId), nil)
 			w := httptest.NewRecorder()
 			vars := map[string]string{
 				"id": tt.reqId,
@@ -298,10 +298,61 @@ func TestCancelHandler(t *testing.T) {
 			req = mux.SetURLVars(req, vars)
 
 			// Test
-			us.statusHandler(w, req)
+			us.cancelHandler(w, req)
 			res := w.Result()
 			st := res.StatusCode
 			assert.Equal(t, tt.wantStatusCode, st, "Status is: ", st)
+		})
+	}
+}
+
+func TestDeleteHandler(t *testing.T) {
+	tests := []struct {
+		name  string
+		tasks map[uuid.UUID]*task
+		reqID string
+		want  int
+	}{
+		{
+			"in-progress task",
+			map[uuid.UUID]*task{stringToUUID(""): inProgressTask(UploadReq{})},
+			stringToUUID("").String(),
+			http.StatusOK,
+		},
+		{
+			"successful task",
+			map[uuid.UUID]*task{stringToUUID(""): successfulTask(UploadReq{})},
+			stringToUUID("").String(),
+			http.StatusOK,
+		},
+		{
+			"task is not in map",
+			map[uuid.UUID]*task{},
+			stringToUUID("").String(),
+			http.StatusNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up
+			service := &Service{Tasks: tt.tasks}
+			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("http://request/upload/%s", tt.reqID), nil)
+			req = mux.SetURLVars(req, map[string]string{
+				"id": tt.reqID,
+			})
+
+			// Test
+			w := httptest.NewRecorder()
+			service.deleteHandler(w, req)
+			statusCode := w.Result().StatusCode
+
+			assert.Equal(t, tt.want, statusCode, "Status is: ", statusCode)
+
+			w = httptest.NewRecorder()
+			service.statusHandler(w, req)
+			statusCode = w.Result().StatusCode
+
+			assert.Equal(t, http.StatusNotFound, statusCode, "Status is: ", statusCode)
 		})
 	}
 }

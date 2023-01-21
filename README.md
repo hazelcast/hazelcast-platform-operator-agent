@@ -25,7 +25,8 @@ Backup command starts an HTTP server for Backup related tasks. Learn more about 
 
 - `POST /upload`: Agent starts an asynchronous backup process. It uploads the latest Hazelcast backup into specified bucket, arhiving the folder in the process. Returns an id of the backup process.
 - `GET /upload/{id}`: Returns the status of the backup.
-- `DELETE /upload/{id}`: Cancels the backup process.
+- `POST /upload/{id}/cancel`: Cancels the backup process.
+- `DELETE /upload/{id}`: Deletes the backup process status.
 - `GET /health`: Returns success if application is running.
 
 ## License

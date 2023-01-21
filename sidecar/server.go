@@ -42,8 +42,9 @@ func startServer(s *Cmd) error {
 		router.HandleFunc("/backup", backupService.listBackupsHandler).Methods("GET")
 		router.HandleFunc("/upload", backupService.uploadHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", backupService.statusHandler).Methods("GET")
-		router.HandleFunc("/upload/{id}", backupService.cancelHandler).Methods("DELETE")
-		router.HandleFunc("/dial", dialService.dialHandler).Methods("POST")
+		router.HandleFunc("/upload/{id}/cancel", backupService.cancelHandler).Methods("POST")
+		router.HandleFunc("/upload/{id}", backupService.deleteHandler).Methods("DELETE")
+		router.HandleFunc("/dial", dialHandler).Methods("POST")
 		router.HandleFunc("/health", healthcheckHandler)
 		server := &http.Server{
 			Addr:    s.HTTPSAddress,
