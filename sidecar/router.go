@@ -214,8 +214,6 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.Method, r.URL)
-
 	vars := mux.Vars(r)
 
 	ID, err := uuid.Parse(vars["id"])
@@ -227,14 +225,14 @@ func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	s.Mu.RLock()
 	if _, ok := s.Tasks[ID]; !ok {
 		s.Mu.RUnlock()
-		log.Println("DELETE", ID, "task not found")
+		routerLog.Error("task not found", zap.Uint32("task id", ID.ID()))
 		serverutil.HttpError(w, http.StatusNotFound)
 		return
 	}
 	delete(s.Tasks, ID)
 	s.Mu.RUnlock()
 
-	log.Println("DELETE", ID, "Deleted task")
+	routerLog.Info("task deleted successfully", zap.Uint32("task id", ID.ID()))
 }
 
 type DialRequest struct {
