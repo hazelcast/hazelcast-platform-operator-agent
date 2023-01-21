@@ -4,18 +4,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
+	"go.uber.org/zap"
 
 	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
+
+var bucketToPVCLog = logger.New().Named("restore_from_bucket_to_pvc")
 
 type BucketToPVCCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET"`
@@ -39,16 +42,16 @@ func (r *BucketToPVCCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting restore agent...")
+	bucketToPVCLog.Info("starting restore agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restore", r); err != nil {
-		log.Println(err)
+		bucketToPVCLog.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		log.Println("Invalid hostname, need to conform to statefulset naming scheme")
+		bucketToPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
@@ -56,47 +59,47 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Restore agent ID:", id)
+	bucketToPVCLog.Info("agent id parse successfully", zap.Int("agent id", id))
 
 	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Bucket:", bucketURI)
+	bucketToPVCLog.Info("bucket uri normalized successfully", zap.String("bucket URI", bucketURI))
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
-	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
+	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
-		log.Println("Restore lock exists, exiting")
+		bucketToPVCLog.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
-	log.Println("Reading secret:", r.SecretName)
+	bucketToPVCLog.Info("reading secret", zap.String("secret name", r.SecretName))
 	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
-		log.Println("error fetching secret data", err)
+		bucketToPVCLog.Error("error fetching secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	// run download process
-	log.Println("Starting download:", r.Destination, id)
-	if err := downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
-		log.Println("download error", err)
+	bucketToHostpathLog.Info("Starting download:", zap.Int(r.Destination, id))
+	if err = downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
+		bucketToPVCLog.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	if err := cleanupLocks(r.Destination, id); err != nil {
-		log.Println("Error cleaning up locks", err)
+	if err = cleanupLocks(r.Destination, id); err != nil {
+		bucketToPVCLog.Error("error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
+		bucketToPVCLog.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	log.Println("Restore successful")
+	bucketToPVCLog.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 
@@ -131,7 +134,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		}
 	}
 
-	log.Println("Restoring", keys[id])
+	bucketToPVCLog.Info("restoring ", zap.String("key", keys[id]))
 	if err = saveFromArchive(ctx, b, keys[id], dst); err != nil {
 		return err
 	}

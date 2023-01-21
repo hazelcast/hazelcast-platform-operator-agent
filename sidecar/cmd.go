@@ -3,11 +3,13 @@ package sidecar
 import (
 	"context"
 	"flag"
-	"log"
 
 	"github.com/google/subcommands"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/kelseyhightower/envconfig"
 )
+
+var cmdLog = logger.New().Named("cmd")
 
 type Cmd struct {
 	HTTPAddress  string `envconfig:"BACKUP_HTTP_ADDRESS"`
@@ -30,11 +32,11 @@ func (p *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (p *Cmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting sidecar agent...")
+	cmdLog.Info("starting sidecar agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("sidecar", p); err != nil {
-		log.Println(err)
+		cmdLog.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 

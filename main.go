@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/google/subcommands"
-
 	"github.com/hazelcast/platform-operator-agent/init/restore"
 	"github.com/hazelcast/platform-operator-agent/init/usercode"
 	"github.com/hazelcast/platform-operator-agent/sidecar"

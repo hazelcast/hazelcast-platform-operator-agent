@@ -2,7 +2,6 @@ package serverutil
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
@@ -12,12 +11,10 @@ func DecodeBody(r *http.Request, v interface{}) error {
 	if err := d.Decode(v); err != nil {
 		return err
 	}
-	log.Printf("BODY %+v", v)
 	return nil
 }
 
 func HttpError(w http.ResponseWriter, code int) {
-	log.Println("ERROR", code)
 	http.Error(w, http.StatusText(code), code)
 }
 

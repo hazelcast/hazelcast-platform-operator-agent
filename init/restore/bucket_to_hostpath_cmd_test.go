@@ -154,6 +154,7 @@ func TestDownloadToHostpath(t *testing.T) {
 			defer bucket.Close()
 
 			// test
+
 			err = downloadToHostpath(ctx, "file://"+bucketPath, dstPath, tt.id, nil)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {

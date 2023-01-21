@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,12 +12,14 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
+	"go.uber.org/zap"
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/gcsblob"
 	_ "gocloud.dev/blob/s3blob"
 
 	"github.com/hazelcast/platform-operator-agent/init/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
@@ -33,6 +34,8 @@ var (
 
 	// lock file, e.g. .restore_lock.12345.12
 	lockRE = regexp.MustCompile(`^\.` + restoreLock + `\.[a-z0-9]*\.\d*$`)
+
+	bucketToHostpathLog = logger.New().Named("restore_from_bucket_to_hostpath")
 )
 
 type BucketToHostpathCmd struct {
@@ -57,16 +60,16 @@ func (r *BucketToHostpathCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *BucketToHostpathCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting restore agent...")
+	bucketToHostpathLog.Info("Starting restore agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restore", r); err != nil {
-		log.Println(err)
+		bucketToHostpathLog.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		log.Println("Invalid hostname, need to conform to statefulset naming scheme")
+		bucketToHostpathLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
@@ -74,47 +77,47 @@ func (r *BucketToHostpathCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ..
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Restore agent ID:", id)
+	bucketToHostpathLog.Info("agent id parsed successfully", zap.Int("agent id", id))
 
 	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Bucket:", bucketURI)
+	bucketToHostpathLog.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
-		log.Println("Restore lock exists, exiting")
+		bucketToHostpathLog.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
-	log.Println("Reading secret:", r.SecretName)
+	bucketToHostpathLog.Info("reading secret", zap.String("secret name", r.SecretName))
 	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
-		log.Println("error fetching secret data", err)
+		bucketToHostpathLog.Error("error fetching secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	// run download process
-	log.Println("Starting download:", r.Destination, id)
-	if err := downloadToHostpath(ctx, bucketURI, r.Destination, id, secretData); err != nil {
-		log.Println("download error", err)
+	bucketToHostpathLog.Info("starting download:", zap.String("destination", r.Destination), zap.Int("id", id))
+	if err = downloadToHostpath(ctx, bucketURI, r.Destination, id, secretData); err != nil {
+		bucketToHostpathLog.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	if err := cleanupLocks(r.Destination, id); err != nil {
-		log.Println("Error cleaning up locks", err)
+	if err = cleanupLocks(r.Destination, id); err != nil {
+		bucketToHostpathLog.Error("Error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+		bucketToHostpathLog.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	log.Println("Restore successful")
+	bucketToHostpathLog.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 
@@ -158,7 +161,7 @@ func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData
 		}
 		// Assume user wants to restore from a completely different cluster
 		if key == "" {
-			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
+			bucketToHostpathLog.Info("restored backup UUID is different from the local hot-restart folder UUID!")
 			key = keys[id]
 		}
 	// If there are multiple backups, members are not isolated
@@ -168,7 +171,7 @@ func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData
 		}
 		if strings.TrimSuffix(path.Base(keys[id]), ".tar.gz") != hotRestartUUIDs[id].Name() {
 			// Assume user wants to restore from a completely different cluster
-			log.Println("Restored backup UUID is different from the local hot-restart folder UUID!")
+			bucketToHostpathLog.Info("restored backup UUID is different from the local hot-restart folder UUID!")
 		}
 		key = keys[id]
 		uuidToDelete = hotRestartUUIDs[id].Name()
@@ -176,13 +179,13 @@ func downloadToHostpath(ctx context.Context, src, dst string, id int, secretData
 
 	// cleanup hot-restart folder if present
 	if uuidToDelete != "" {
-		log.Println("Deleting the hot-restart folder", uuidToDelete)
+		bucketToHostpathLog.Info("deleting the hot-restart folder: ", zap.String("uuids", uuidToDelete))
 		if err = os.RemoveAll(path.Join(dst, uuidToDelete)); err != nil {
 			return err
 		}
 	}
 
-	log.Println("Restoring", key)
+	bucketToHostpathLog.Info("restoring", zap.String("key", key))
 	if err = saveFromArchive(ctx, b, key, dst); err != nil {
 		return err
 	}

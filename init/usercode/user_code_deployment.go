@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"io"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,12 +11,16 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
+	"go.uber.org/zap"
 
 	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 const usercodeLock = "usercode_lock"
+
+var log = logger.New().Named("user_code_deployment")
 
 type Cmd struct {
 	Bucket      string `envconfig:"UCD_BUCKET"`
@@ -37,18 +40,18 @@ func (r *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Println("Starting user code deployment agent...")
+	log.Info("starting user code deployment agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("ucd", r); err != nil {
-		log.Println(err)
+		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	lock := filepath.Join(r.Destination, usercodeLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
-		log.Println("Lock file exists, exiting")
+		log.Error("lock file exists, exiting: " + err.Error())
 		return subcommands.ExitSuccess
 	}
 
@@ -56,24 +59,24 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	log.Println("Bucket:", bucketURI)
+	log.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
 
-	log.Println("Reading secret:", r.SecretName)
+	log.Info("reading secret", zap.String("secret name", r.SecretName))
 	secretData, err := bucket.SecretData(ctx, r.SecretName)
 	if err != nil {
-		log.Println("error fetching secret data", err)
+		log.Error("error fetching secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	// run download process
-	log.Println("Starting download:", r.Destination)
+	log.Info("starting download", zap.String("destination", r.Destination))
 	if err = downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
-		log.Println("download error", err)
+		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	if err := os.WriteFile(lock, []byte{}, 0600); err != nil {
-		log.Println("Lock file creation error", err)
+	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
+		log.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 

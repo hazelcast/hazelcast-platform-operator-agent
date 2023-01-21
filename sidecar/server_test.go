@@ -143,6 +143,7 @@ func TestUploadHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
+			require.Nil(t, err)
 			us := &Service{Tasks: map[uuid.UUID]*task{}}
 			req := httptest.NewRequest(http.MethodPost, "http://request/upload", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
@@ -224,6 +225,7 @@ func TestStatusHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up
+
 			us := &Service{Tasks: tt.taskMap}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://request/upload/%s", tt.reqId), nil)
 			w := httptest.NewRecorder()
@@ -626,6 +628,7 @@ func failedTask(req UploadReq) *task {
 	cancel()
 	return t
 }
+
 func successfulTask(req UploadReq) *task {
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &task{

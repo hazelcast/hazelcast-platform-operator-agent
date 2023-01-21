@@ -3,31 +3,38 @@ package sidecar
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
+
+var serverLog = logger.New().Named("server")
 
 func startServer(s *Cmd) error {
 	ca, err := os.ReadFile(s.CA)
 	if err != nil {
-		log.Println(err)
+		serverLog.Error("error while reading CA: " + err.Error())
 		return err
 	}
 
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(ca); !ok {
-		log.Println("failed to find any PEM data in ca input")
+		err = fmt.Errorf("failed to find any PEM data in ca input")
+		serverLog.Error(err.Error())
 		return err
 	}
 
 	backupService := Service{
 		Tasks: make(map[uuid.UUID]*task),
 	}
+
+	dialService := DialService{}
 
 	var g errgroup.Group
 	g.Go(func() error {
@@ -37,7 +44,7 @@ func startServer(s *Cmd) error {
 		router.HandleFunc("/upload/{id}", backupService.statusHandler).Methods("GET")
 		router.HandleFunc("/upload/{id}/cancel", backupService.cancelHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", backupService.deleteHandler).Methods("DELETE")
-		router.HandleFunc("/dial", dialHandler).Methods("POST")
+		router.HandleFunc("/dial", dialService.dialHandler).Methods("POST")
 		router.HandleFunc("/health", healthcheckHandler)
 		server := &http.Server{
 			Addr:    s.HTTPSAddress,
@@ -57,7 +64,7 @@ func startServer(s *Cmd) error {
 	})
 
 	if err = g.Wait(); err != nil {
-		log.Println(err)
+		serverLog.Error("an error occurred while setting up server: " + err.Error())
 		return err
 	}
 
