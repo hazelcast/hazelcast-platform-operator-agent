@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/google/subcommands"
+
 	"github.com/hazelcast/platform-operator-agent/init/restore"
 	"github.com/hazelcast/platform-operator-agent/init/usercode"
 	"github.com/hazelcast/platform-operator-agent/sidecar"
@@ -17,8 +18,6 @@ func main() {
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
 	subcommands.Register(&usercode.Cmd{}, "")
-	subcommands.Register(&restore.BucketToHostpathCmd{}, "")
-	subcommands.Register(&restore.LocalInHostpathCmd{}, "")
 	subcommands.Register(&restore.LocalInPVCCmd{}, "")
 	subcommands.Register(&restore.BucketToPVCCmd{}, "")
 	subcommands.Register(&sidecar.Cmd{}, "")

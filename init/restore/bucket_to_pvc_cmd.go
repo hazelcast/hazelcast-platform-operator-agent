@@ -83,7 +83,7 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	}
 
 	// run download process
-	bucketToHostpathLog.Info("Starting download:", zap.Int(r.Destination, id))
+	bucketToPVCLog.Info("Starting download:", zap.Int(r.Destination, id))
 	if err = downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
 		bucketToPVCLog.Error("download error: " + err.Error())
 		return subcommands.ExitFailure

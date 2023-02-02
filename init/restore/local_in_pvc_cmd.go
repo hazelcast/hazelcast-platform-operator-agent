@@ -4,9 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
@@ -19,7 +22,20 @@ import (
 	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
-var localInPVCLog = logger.New().Named("")
+const restoreLock = "restore_lock"
+
+var (
+	// StatefulSet hostname is always DSN RFC 1123 and number
+	hostnameRE = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?-([0-9]+)$")
+
+	// Backup directory name is a formated date e.g. 2006-01-02-15-04-05/
+	dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/`)
+
+	// lock file, e.g. .restore_lock.12345.12
+	lockRE = regexp.MustCompile(`^\.` + restoreLock + `\.[a-z0-9]*\.\d*$`)
+
+	localInPVCLog = logger.New().Named("restore_from_bucket_to_pvc")
+)
 
 type LocalInPVCCmd struct {
 	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
@@ -51,7 +67,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 	}
 
 	if !hostnameRE.MatchString(r.Hostname) {
-		localInHostpathLog.Error("invalid hostname, need to conform to statefulset naming scheme")
+		localInPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
@@ -114,4 +130,49 @@ func copyBackupPVC(backupDir, destDir string) error {
 
 	bk := backupUUIDs[0].Name()
 	return copyDir(path.Join(backupDir, bk), path.Join(destDir, bk))
+}
+
+func lockFileName(restoreId string, memberId int) string {
+	return fmt.Sprintf(".%s.%s.%d", restoreLock, restoreId, memberId)
+}
+
+func copyDir(source, destination string) error {
+	var err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		var out = filepath.Join(destination, strings.TrimPrefix(path, source))
+
+		if info.IsDir() {
+			return os.Mkdir(filepath.Join(out), info.Mode())
+		}
+		err = func() error {
+			in, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer in.Close()
+
+			// create output
+			fh, err := os.Create(out)
+			if err != nil {
+				return err
+			}
+			defer fh.Close()
+
+			// change file mode
+			err = fh.Chmod(info.Mode())
+			if err != nil {
+				return err
+			}
+
+			// copy content
+			_, err = io.Copy(fh, in)
+			return err
+		}()
+
+		return err
+
+	})
+	return err
 }
