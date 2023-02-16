@@ -1,6 +1,7 @@
 package sidecar
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 
 var serverLog = logger.New().Named("server")
 
-func startServer(s *Cmd) error {
+func startServer(ctx context.Context, s *Cmd) error {
 	ca, err := os.ReadFile(s.CA)
 	if err != nil {
 		serverLog.Error("error while reading CA: " + err.Error())
@@ -36,7 +37,7 @@ func startServer(s *Cmd) error {
 
 	dialService := DialService{}
 
-	var g errgroup.Group
+	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		router := mux.NewRouter().StrictSlash(true)
 		router.HandleFunc("/backup", backupService.listBackupsHandler).Methods("GET")
