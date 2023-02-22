@@ -31,7 +31,7 @@ func (p *Cmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.Key, "key", "tls.key", "http server tls key")
 }
 
-func (p *Cmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (p *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	cmdLog.Info("starting sidecar agent...")
 
 	// overwrite config with environment variables
@@ -40,7 +40,7 @@ func (p *Cmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interface{}) subc
 		return subcommands.ExitFailure
 	}
 
-	err := startServer(p)
+	err := startServer(ctx, p)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
