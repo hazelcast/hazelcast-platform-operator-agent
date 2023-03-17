@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -236,7 +235,7 @@ func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type DialRequest struct {
-	Endpoints string `json:"endpoints"`
+	Endpoints []string `json:"endpoints"`
 }
 
 type DialResponse struct {
@@ -255,21 +254,19 @@ func (d *DialService) dialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dialResp := DialResponse{Success: true}
-	endpoints := strings.Split(req.Endpoints, ",")
 
 	var wg sync.WaitGroup
-	for _, e := range endpoints {
+	for _, e := range req.Endpoints {
 		wg.Add(1)
-		e := e
-		go func() {
+		go func(endpoint string) {
 			defer wg.Done()
-			err := tryDial(e)
+			err := tryDial(endpoint)
 			if err != nil {
 				dialResp.Success = false
-				dialResp.ErrorMessages = append(dialResp.ErrorMessages, fmt.Sprintf("%s is not reachable", e))
-				routerLog.Error("target is not reachable", zap.String("target", e))
+				dialResp.ErrorMessages = append(dialResp.ErrorMessages, fmt.Sprintf("%s is not reachable", endpoint))
+				routerLog.Error("target is not reachable", zap.String("target", endpoint))
 			}
-		}()
+		}(e)
 	}
 	wg.Wait()
 
