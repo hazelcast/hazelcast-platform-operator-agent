@@ -1,4 +1,4 @@
-package usercode
+package usercode_bucket
 
 import (
 	"context"
@@ -13,37 +13,37 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
-const usercodeLock = "usercode_lock"
+const usercodeLock = "usercode_bucket_lock"
 
-var log = logger.New().Named("user_code_deployment")
+var log = logger.New().Named("user_code_bucket")
 
 type Cmd struct {
-	Bucket      string `envconfig:"UCD_BUCKET"`
-	Destination string `envconfig:"UCD_DESTINATION"`
-	SecretName  string `envconfig:"UCD_SECRET_NAME"`
+	BucketURL   string `envconfig:"UC_BUCKET_URL"`
+	Destination string `envconfig:"UC_BUCKET_DESTINATION"`
+	SecretName  string `envconfig:"UC_BUCKET_SECRET_NAME"`
 }
 
-func (*Cmd) Name() string     { return "user-code-deployment" }
-func (*Cmd) Synopsis() string { return "Run User Code Deployment Agent" }
+func (*Cmd) Name() string     { return "user-code-bucket" }
+func (*Cmd) Synopsis() string { return "Run User Code Bucket Agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
-	f.StringVar(&r.Bucket, "src", "", "src bucket path")
+	f.StringVar(&r.BucketURL, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/bucket", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting user code deployment agent...")
+	log.Info("starting user code bucket agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("ucd", r); err != nil {
+	if err := envconfig.Process("uc_bucket", r); err != nil {
 		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
@@ -55,7 +55,7 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 		return subcommands.ExitSuccess
 	}
 
-	bucketURI, err := uri.NormalizeURI(r.Bucket)
+	bucketURI, err := uri.NormalizeURI(r.BucketURL)
 	if err != nil {
 		return subcommands.ExitFailure
 	}

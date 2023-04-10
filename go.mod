@@ -38,6 +38,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.4.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0 // indirect
 	github.com/aws/smithy-go v1.8.0 // indirect
+	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/go-logr/logr v1.2.0 // indirect
@@ -50,6 +51,7 @@ require (
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/wire v0.5.0 // indirect
+	github.com/jarcoal/httpmock v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

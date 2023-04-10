@@ -12,7 +12,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"

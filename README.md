@@ -13,7 +13,15 @@ The agent is used by Hazelcast Platform Operator for supporting multiple feature
 
 ## User Code Deployment
 
-Agent downloads `jar` files from a specified bucket and puts it under destined path. Learn more about `user-code-deployment` command using the `--help` argument.
+There are two commands for user code deployment: `user-code-bucket` and `user-code-url`
+
+### User Code from Buckets
+
+Agent downloads `jar` files from a specified bucket and puts it under destined path. Learn more about `user-code-bucket` command using the `--help` argument.
+
+### User Code from URLs
+
+Agent downloads files from a specified URLs and puts them under destined path. Learn more about `user-code-url` command using the `--help` argument.
 
 ## Restore
 
