@@ -1,0 +1,10 @@
+commitish: 'main'
+replacers:
+  - search: '/(<!.*)\s+/gm'
+    replace: ''
+  - search: '/\[(.*?)\]/g'
+    replace: ''
+change-template: '- $TITLE (#$NUMBER)$BODY'
+template: |
+  # What's Changed
+  $CHANGES
