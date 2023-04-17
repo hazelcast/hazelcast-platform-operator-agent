@@ -1,4 +1,4 @@
-package usercode_bucket
+package downloadbucket
 
 import (
 	"context"
@@ -18,37 +18,37 @@ import (
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
-const usercodeLock = "usercode_bucket_lock"
+const bucketJarLock = ".jar_download_bucket"
 
-var log = logger.New().Named("user_code_bucket")
+var log = logger.New().Named("jar_download_bucket")
 
 type Cmd struct {
-	BucketURL   string `envconfig:"UC_BUCKET_URL"`
-	Destination string `envconfig:"UC_BUCKET_DESTINATION"`
-	SecretName  string `envconfig:"UC_BUCKET_SECRET_NAME"`
+	Destination string `envconfig:"JDB_DESTINATION"`
+	SecretName  string `envconfig:"JDB_SECRET_NAME"`
+	BucketURL   string `envconfig:"JDB_URL"`
 }
 
-func (*Cmd) Name() string     { return "user-code-bucket" }
-func (*Cmd) Synopsis() string { return "Run User Code Bucket Agent" }
+func (*Cmd) Name() string     { return "jar-download-bucket" }
+func (*Cmd) Synopsis() string { return "Run Jar Download Bucket agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	f.StringVar(&r.BucketURL, "src", "", "src bucket path")
-	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/bucket", "dst filesystem path")
+	f.StringVar(&r.Destination, "dst", "", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting user code bucket agent...")
+	log.Info("starting jar download bucket agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("uc_bucket", r); err != nil {
+	if err := envconfig.Process("jdb", r); err != nil {
 		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.Destination, usercodeLock)
+	lock := filepath.Join(r.Destination, bucketJarLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
 		log.Error("lock file exists, exiting: " + err.Error())

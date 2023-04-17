@@ -1,4 +1,4 @@
-package usercode_url
+package downloadurl
 
 import (
 	"context"
@@ -12,39 +12,38 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
 
-const usercodeLock = "usercode_url_lock"
+const urlFileLock = ".file_download_url"
 
-var log = logger.New().Named("user_code_url")
+var log = logger.New().Named("file_download_url")
 
 type Cmd struct {
-	URLs        string `envconfig:"UC_URL_URLS"`
-	Destination string `envconfig:"UC_URL_DESTINATION"`
+	Destination string `envconfig:"FDU_DESTINATION"`
+	URLs        string `envconfig:"FDU_URLS"`
 }
 
-func (*Cmd) Name() string     { return "user-code-url" }
-func (*Cmd) Synopsis() string { return "Run User Code URL Agent" }
+func (*Cmd) Name() string     { return "file-download-url" }
+func (*Cmd) Synopsis() string { return "Run File Download from URL Agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
 	f.StringVar(&r.URLs, "urls", "", "comma separated urls")
-	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/urls", "dst filesystem path")
+	f.StringVar(&r.Destination, "dst", "", "dst filesystem path")
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting user code url agent...")
+	log.Info("starting file download url agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("uc_url", r); err != nil {
+	if err := envconfig.Process("fdu", r); err != nil {
 		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.Destination, usercodeLock)
+	lock := filepath.Join(r.Destination, urlFileLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
 		log.Error("lock file exists, exiting: " + err.Error())
@@ -73,7 +72,7 @@ func downloadFiles(ctx context.Context, srcURLs []string, dst string) error {
 	for _, url := range srcURLs {
 		url := url
 		g.Go(func() error {
-			return fileutil.DownloadFileFromURL(groupCtx, url, dst)
+			return DownloadFileFromURL(groupCtx, url, dst)
 		})
 	}
 

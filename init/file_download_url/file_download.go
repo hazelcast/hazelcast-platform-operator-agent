@@ -1,4 +1,4 @@
-package fileutil
+package downloadurl
 
 import (
 	"context"
@@ -19,7 +19,8 @@ var (
 
 func init() {
 	// .jar extension is not present by default
-	mime.AddExtensionType(".jar", "application/java-archive")
+	err := mime.AddExtensionType(".jar", "application/java-archive")
+	panic(err)
 }
 
 func DownloadFileFromURL(ctx context.Context, srcURL, dstFolder string) error {

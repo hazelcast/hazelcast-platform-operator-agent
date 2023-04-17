@@ -1,4 +1,4 @@
-package usercode_bucket
+package downloadbucket
 
 import (
 	"context"
