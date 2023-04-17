@@ -20,7 +20,9 @@ var (
 func init() {
 	// .jar extension is not present by default
 	err := mime.AddExtensionType(".jar", "application/java-archive")
-	panic(err)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func DownloadFileFromURL(ctx context.Context, srcURL, dstFolder string) error {
