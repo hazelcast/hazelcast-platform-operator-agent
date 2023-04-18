@@ -1,4 +1,4 @@
-package usercode
+package downloadbucket
 
 import (
 	"context"
@@ -13,50 +13,51 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/hazelcast/platform-operator-agent/init/bucket"
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
-const usercodeLock = "usercode_lock"
+const bucketJarLock = ".jar_download_bucket"
 
-var log = logger.New().Named("user_code_deployment")
+var log = logger.New().Named("jar_download_bucket")
 
 type Cmd struct {
-	Bucket      string `envconfig:"UCD_BUCKET"`
-	Destination string `envconfig:"UCD_DESTINATION"`
-	SecretName  string `envconfig:"UCD_SECRET_NAME"`
+	Destination string `envconfig:"JDB_DESTINATION"`
+	SecretName  string `envconfig:"JDB_SECRET_NAME"`
+	BucketURI   string `envconfig:"JDB_BUCKET_URI"`
 }
 
-func (*Cmd) Name() string     { return "user-code-deployment" }
-func (*Cmd) Synopsis() string { return "Run User Code Deployment Agent" }
+func (*Cmd) Name() string     { return "jar-download-bucket" }
+func (*Cmd) Synopsis() string { return "Run Jar Download Bucket agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
-	f.StringVar(&r.Bucket, "src", "", "src bucket path")
-	f.StringVar(&r.Destination, "dst", "/opt/hazelcast/userCode/bucket", "dst filesystem path")
+	f.StringVar(&r.BucketURI, "src", "", "src bucket path")
+	f.StringVar(&r.Destination, "dst", "", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting user code deployment agent...")
+	log.Info("starting jar download bucket agent...")
 
 	// overwrite config with environment variables
-	if err := envconfig.Process("ucd", r); err != nil {
+	if err := envconfig.Process("jdb", r); err != nil {
 		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.Destination, usercodeLock)
+	lock := filepath.Join(r.Destination, bucketJarLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
 		log.Error("lock file exists, exiting: " + err.Error())
 		return subcommands.ExitSuccess
 	}
 
-	bucketURI, err := uri.NormalizeURI(r.Bucket)
+	bucketURI, err := uri.NormalizeURI(r.BucketURI)
 	if err != nil {
+		log.Error("an error occurred while normalizing URI: " + err.Error())
 		return subcommands.ExitFailure
 	}
 	log.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
