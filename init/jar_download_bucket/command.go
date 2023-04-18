@@ -25,7 +25,7 @@ var log = logger.New().Named("jar_download_bucket")
 type Cmd struct {
 	Destination string `envconfig:"JDB_DESTINATION"`
 	SecretName  string `envconfig:"JDB_SECRET_NAME"`
-	BucketURL   string `envconfig:"JDB_URL"`
+	BucketURI   string `envconfig:"JDB_BUCKET_URI"`
 }
 
 func (*Cmd) Name() string     { return "jar-download-bucket" }
@@ -34,7 +34,7 @@ func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
 	// We ignore error because this is just a default value
-	f.StringVar(&r.BucketURL, "src", "", "src bucket path")
+	f.StringVar(&r.BucketURI, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
 }
@@ -55,8 +55,9 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 		return subcommands.ExitSuccess
 	}
 
-	bucketURI, err := uri.NormalizeURI(r.BucketURL)
+	bucketURI, err := uri.NormalizeURI(r.BucketURI)
 	if err != nil {
+		log.Error("an error occurred while normalizing URI: " + err.Error())
 		return subcommands.ExitFailure
 	}
 	log.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
