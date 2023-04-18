@@ -10,6 +10,9 @@ jobs:
   publish-release-image:
     name: Publish Agent Stable Version to Docker Hub
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     env:
       RELEASE_VERSION: ${{ github.event.inputs.RELEASE_VERSION }}
 
@@ -62,11 +65,14 @@ jobs:
 
       - name: Create Release
         if: steps.newTag.outcome == 'success'
-        uses: ncipollo/release-action@v1
+        uses: release-drafter/release-drafter@v5
         with:
           tag: v${{ env.RELEASE_VERSION }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          generateReleaseNotes: true
+          name: ${{ env.RELEASE_VERSION }}
+          config-name: release-drafter-config.yml
+          publish: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete Release Branch
         if: always() && steps.newBranch.outcome == 'success'
