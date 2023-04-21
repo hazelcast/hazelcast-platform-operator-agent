@@ -162,7 +162,7 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 		routerLog.Error(err.Error())
 		serverutil.HttpError(w, http.StatusBadRequest)
 	}
-	err = bucket.DownloadJar(ctx, req.URL, req.DestDir, req.FileName, data)
+	err = bucket.DownloadFile(ctx, req.URL, req.DestDir, req.FileName, data)
 	if err != nil {
 		err = fmt.Errorf("download error: %w", err)
 		routerLog.Error(err.Error())

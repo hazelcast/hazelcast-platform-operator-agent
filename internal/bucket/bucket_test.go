@@ -147,3 +147,23 @@ func TestDownloadClassJars(t *testing.T) {
 		})
 	}
 }
+
+func TestDownloadFile(t *testing.T) {
+	tmpdir, err := os.MkdirTemp("", "download_files")
+	require.Nil(t, err)
+	defer os.RemoveAll(tmpdir)
+
+	bucketPath := path.Join(tmpdir, "bucket")
+	files := []fileutil.File{{Name: "file1.jar"}, {Name: "file2.jar"}, {Name: "jar3.jar"}}
+	err = fileutil.CreateFiles(bucketPath, files, true)
+	require.Nil(t, err)
+
+	dstPath, err := os.MkdirTemp(tmpdir, "dest")
+	require.Nil(t, err, "Destination Path could not be created")
+
+	err = DownloadFile(context.Background(), "file://"+bucketPath, dstPath, "file2.jar", nil)
+	require.Nil(t, err, "Error downloading file")
+	copiedFiles, err := fileutil.DirFileList(dstPath)
+	require.Nil(t, err)
+	require.ElementsMatch(t, copiedFiles, []fileutil.File{{Name: "file2.jar"}})
+}

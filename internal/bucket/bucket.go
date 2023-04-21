@@ -167,7 +167,7 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 	return os.Setenv(name, string(value))
 }
 
-func DownloadJar(ctx context.Context, src, dst, jarName string, secretData map[string][]byte) error {
+func DownloadFile(ctx context.Context, src, dst, jarName string, secretData map[string][]byte) error {
 	b, err := OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
