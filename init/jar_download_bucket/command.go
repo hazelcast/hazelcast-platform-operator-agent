@@ -3,11 +3,8 @@ package downloadbucket
 import (
 	"context"
 	"flag"
-	"io"
 	"os"
-	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
@@ -71,7 +68,7 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 
 	// run download process
 	log.Info("starting download", zap.String("destination", r.Destination))
-	if err = downloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
+	if err = bucket.DownloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
 		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
@@ -82,33 +79,4 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 	}
 
 	return subcommands.ExitSuccess
-}
-
-func downloadClassJars(ctx context.Context, src, dst string, secretData map[string][]byte) error {
-	b, err := bucket.OpenBucket(ctx, src, secretData)
-	if err != nil {
-		return err
-	}
-	defer b.Close()
-
-	iter := b.List(nil)
-	for {
-		obj, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		// naive validation, we only want jar files and no files under subfolders
-		if !strings.HasSuffix(obj.Key, ".jar") || path.Base(obj.Key) != obj.Key {
-			continue
-		}
-
-		if err = bucket.SaveFileFromBucket(ctx, b, obj.Key, dst); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

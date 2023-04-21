@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -164,6 +165,55 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 		return fmt.Errorf("invalid secret: missing key: %v", key)
 	}
 	return os.Setenv(name, string(value))
+}
+
+func DownloadJar(ctx context.Context, src, dst, jarName string, secretData map[string][]byte) error {
+	b, err := OpenBucket(ctx, src, secretData)
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+
+	exists, err := b.Exists(ctx, jarName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("not found: jar with the name not found: %v", jarName)
+	}
+	if err = SaveFileFromBucket(ctx, b, jarName, dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DownloadClassJars(ctx context.Context, src, dst string, secretData map[string][]byte) error {
+	b, err := OpenBucket(ctx, src, secretData)
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+
+	iter := b.List(nil)
+	for {
+		obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		// naive validation, we only want jar files and no files under subfolders
+		if !strings.HasSuffix(obj.Key, ".jar") || path.Base(obj.Key) != obj.Key {
+			continue
+		}
+
+		if err = SaveFileFromBucket(ctx, b, obj.Key, dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func SaveFileFromBucket(ctx context.Context, bucket *blob.Bucket, key, path string) error {
