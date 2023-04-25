@@ -45,6 +45,7 @@ func startServer(ctx context.Context, s *Cmd) error {
 		router.HandleFunc("/upload/{id}", backupService.statusHandler).Methods("GET")
 		router.HandleFunc("/upload/{id}/cancel", backupService.cancelHandler).Methods("POST")
 		router.HandleFunc("/upload/{id}", backupService.deleteHandler).Methods("DELETE")
+		router.HandleFunc("/download", backupService.downloadFileHandler).Methods("POST")
 		router.HandleFunc("/dial", dialService.dialHandler).Methods("POST")
 		router.HandleFunc("/health", healthcheckHandler)
 		server := &http.Server{

@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"path"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
@@ -135,6 +137,40 @@ func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	go t.process(ID)
 
 	serverutil.HttpJSON(w, UploadResp{ID: ID})
+}
+
+type DownloadFileReq struct {
+	URL        string `json:"url"`
+	FileName   string `json:"file_name"`
+	DestDir    string `json:"dest_dir"`
+	SecretName string `json:"secret_name"`
+}
+
+func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
+	var req DownloadFileReq
+	if err := serverutil.DecodeBody(r, &req); err != nil {
+		err = fmt.Errorf("error occurred while parsing body: %w", err)
+		routerLog.Error(err.Error())
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	data, err := bucket.SecretData(ctx, req.SecretName)
+	if err != nil {
+		err = fmt.Errorf("error fetching secret data: %w", err)
+		routerLog.Error(err.Error())
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+	err = bucket.DownloadFile(ctx, req.URL, req.DestDir, req.FileName, data)
+	if err != nil {
+		err = fmt.Errorf("download error: %w", err)
+		routerLog.Error(err.Error())
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // StatusResp is a backup Service task status response
