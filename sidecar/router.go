@@ -19,6 +19,7 @@ import (
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 const (
@@ -163,7 +164,13 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return
 	}
-	err = bucket.DownloadFile(ctx, req.URL, req.DestDir, req.FileName, data)
+	bucketURI, err := uri.NormalizeURI(req.URL)
+	if err != nil {
+		routerLog.Error("error occurred while parsing bucket URI: " + err.Error())
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+	err = bucket.DownloadFile(ctx, bucketURI, req.DestDir, req.FileName, data)
 	if err != nil {
 		err = fmt.Errorf("download error: %w", err)
 		routerLog.Error(err.Error())
