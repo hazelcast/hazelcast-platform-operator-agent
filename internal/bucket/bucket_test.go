@@ -45,7 +45,7 @@ func TestSaveFileFromBackup(t *testing.T) {
 			}
 
 			// Run the tests
-			err = SaveFileFromBucket(context.Background(), b, tt.key, dstPath)
+			err = saveFile(context.Background(), b, tt.key, dstPath)
 			require.Equal(t, tt.errWanted, err != nil, "Error is: ", err)
 			if err != nil {
 				require.Contains(t, err.Error(), "no such file or directory")
@@ -59,7 +59,7 @@ func TestSaveFileFromBackup(t *testing.T) {
 	}
 }
 
-func TestDownloadClassJars(t *testing.T) {
+func TestDownloadFiles(t *testing.T) {
 	tests := []struct {
 		name          string
 		dstPathExists bool
@@ -68,7 +68,7 @@ func TestDownloadClassJars(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			"only jar allowed",
+			"all files allowed",
 			true,
 			[]fileutil.File{
 				{Name: "file1"},
@@ -76,8 +76,9 @@ func TestDownloadClassJars(t *testing.T) {
 				{Name: "test2.class"},
 			},
 			[]fileutil.File{
+				{Name: "file1"},
 				{Name: "test1.jar"},
-			},
+				{Name: "test2.class"}},
 			false,
 		},
 		{
@@ -95,14 +96,17 @@ func TestDownloadClassJars(t *testing.T) {
 			false,
 		},
 		{
-			"no jar",
+			"top level files",
 			true,
 			[]fileutil.File{
 				{Name: "folder1/test2.jar"},
 				{Name: "test1.jar2"},
 				{Name: "jarjar"},
 			},
-			[]fileutil.File{},
+			[]fileutil.File{
+				{Name: "test1.jar2"},
+				{Name: "jarjar"},
+			},
 			false,
 		},
 		{
@@ -118,7 +122,7 @@ func TestDownloadClassJars(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Prepare the buckets and destination folder
-			tmpdir, err := os.MkdirTemp("", "download_class_jars")
+			tmpdir, err := os.MkdirTemp("", "download_files")
 			require.Nil(t, err)
 			defer os.RemoveAll(tmpdir)
 
@@ -135,7 +139,7 @@ func TestDownloadClassJars(t *testing.T) {
 			}
 
 			// Run the tests
-			err = DownloadClassJars(context.Background(), "file://"+bucketPath, dstPath, nil)
+			err = DownloadFiles(context.Background(), "file://"+bucketPath, dstPath, nil)
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				require.Contains(t, err.Error(), "no such file or directory")
