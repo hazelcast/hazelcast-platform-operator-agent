@@ -167,27 +167,27 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 	return os.Setenv(name, string(value))
 }
 
-func DownloadFile(ctx context.Context, src, dst, jarName string, secretData map[string][]byte) error {
+func DownloadFile(ctx context.Context, src, dst, filename string, secretData map[string][]byte) error {
 	b, err := OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
 	defer b.Close()
 
-	exists, err := b.Exists(ctx, jarName)
+	exists, err := b.Exists(ctx, filename)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("not found: jar with the name not found: %v", jarName)
+		return fmt.Errorf("not found: jar with the name not found: %v", filename)
 	}
-	if err = SaveFileFromBucket(ctx, b, jarName, dst); err != nil {
+	if err = saveFile(ctx, b, filename, dst); err != nil {
 		return err
 	}
 	return nil
 }
 
-func DownloadClassJars(ctx context.Context, src, dst string, secretData map[string][]byte) error {
+func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][]byte) error {
 	b, err := OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
@@ -203,12 +203,12 @@ func DownloadClassJars(ctx context.Context, src, dst string, secretData map[stri
 		if err != nil {
 			return err
 		}
-		// naive validation, we only want jar files and no files under subfolders
-		if !strings.HasSuffix(obj.Key, ".jar") || path.Base(obj.Key) != obj.Key {
+		// we only want top level files and no files under subfolders
+		if path.Base(obj.Key) != obj.Key {
 			continue
 		}
 
-		if err = SaveFileFromBucket(ctx, b, obj.Key, dst); err != nil {
+		if err = saveFile(ctx, b, obj.Key, dst); err != nil {
 			return err
 		}
 	}
@@ -216,7 +216,7 @@ func DownloadClassJars(ctx context.Context, src, dst string, secretData map[stri
 	return nil
 }
 
-func SaveFileFromBucket(ctx context.Context, bucket *blob.Bucket, key, path string) error {
+func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error {
 	s, err := bucket.NewReader(ctx, key, nil)
 	if err != nil {
 		return err

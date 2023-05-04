@@ -15,9 +15,9 @@ import (
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
-const bucketJarLock = ".jar_download_bucket"
+const bucketLock = ".download_bucket"
 
-var log = logger.New().Named("jar_download_bucket")
+var log = logger.New().Named("download_bucket")
 
 type Cmd struct {
 	Destination string `envconfig:"JDB_DESTINATION"`
@@ -26,7 +26,7 @@ type Cmd struct {
 }
 
 func (*Cmd) Name() string     { return "jar-download-bucket" }
-func (*Cmd) Synopsis() string { return "Run Jar Download Bucket agent" }
+func (*Cmd) Synopsis() string { return "Run Download Bucket agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {
@@ -37,7 +37,7 @@ func (r *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting jar download bucket agent...")
+	log.Info("starting download bucket agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("jdb", r); err != nil {
@@ -45,7 +45,7 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.Destination, bucketJarLock)
+	lock := filepath.Join(r.Destination, bucketLock)
 	if _, err := os.Stat(lock); err == nil || os.IsExist(err) {
 		// If usercodeLock lock exists exit
 		log.Error("lock file exists, exiting: " + err.Error())
@@ -68,7 +68,7 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 
 	// run download process
 	log.Info("starting download", zap.String("destination", r.Destination))
-	if err = bucket.DownloadClassJars(ctx, bucketURI, r.Destination, secretData); err != nil {
+	if err = bucket.DownloadFiles(ctx, bucketURI, r.Destination, secretData); err != nil {
 		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
