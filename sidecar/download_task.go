@@ -35,7 +35,7 @@ func downloadFromBucket(ctx context.Context, req DownloadFileReq) error {
 
 func downloadFromUrl(ctx context.Context, req DownloadFileReq) error {
 	srcURL := req.URL
-	if !strings.HasSuffix(req.URL, ".jar") {
+	if req.FileName != "" {
 		srcURL = strings.TrimSuffix(req.URL, "/") + "/" + req.FileName
 	}
 	return fileutil.DownloadFileFromURL(ctx, srcURL, req.DestDir)
