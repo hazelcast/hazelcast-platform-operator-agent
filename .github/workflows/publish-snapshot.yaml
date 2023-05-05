@@ -1,5 +1,6 @@
 name: Publish Agent Snapshot
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - main
