@@ -3,7 +3,6 @@ package sidecar
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
@@ -34,9 +33,5 @@ func downloadFromBucket(ctx context.Context, req DownloadFileReq) error {
 }
 
 func downloadFromUrl(ctx context.Context, req DownloadFileReq) error {
-	srcURL := req.URL
-	if req.FileName != "" {
-		srcURL = strings.TrimSuffix(req.URL, "/") + "/" + req.FileName
-	}
-	return fileutil.DownloadFileFromURL(ctx, srcURL, req.DestDir)
+	return fileutil.DownloadFileFromURL(ctx, req.URL, req.DestDir)
 }
