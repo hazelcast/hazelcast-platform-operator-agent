@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
 
@@ -72,7 +73,7 @@ func downloadFiles(ctx context.Context, srcURLs []string, dst string) error {
 	for _, url := range srcURLs {
 		url := url
 		g.Go(func() error {
-			return DownloadFileFromURL(groupCtx, url, dst)
+			return fileutil.DownloadFileFromURL(groupCtx, url, dst)
 		})
 	}
 

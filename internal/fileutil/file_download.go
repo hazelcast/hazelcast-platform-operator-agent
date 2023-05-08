@@ -1,4 +1,4 @@
-package downloadurl
+package fileutil
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ErrNoFilename = errors.New("No file exists")
+	ErrNoFilename = errors.New("no file exists")
 )
 
 func init() {
@@ -35,7 +35,7 @@ func DownloadFileFromURL(ctx context.Context, srcURL, dstFolder string) error {
 
 	// Check server response
 	if c := resp.StatusCode; c < 200 || 299 < c {
-		return fmt.Errorf("Error downloading file, status code is %d", c)
+		return fmt.Errorf("error downloading file, status code is %d", c)
 	}
 
 	// Guess the filename

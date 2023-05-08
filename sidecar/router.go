@@ -15,11 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
-	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
-	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 const (
@@ -140,11 +138,19 @@ func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	serverutil.HttpJSON(w, UploadResp{ID: ID})
 }
 
+type DownloadType string
+
+const (
+	BucketDownload DownloadType = "Bucket"
+	URLDownload    DownloadType = "URL"
+)
+
 type DownloadFileReq struct {
-	URL        string `json:"url"`
-	FileName   string `json:"file_name"`
-	DestDir    string `json:"dest_dir"`
-	SecretName string `json:"secret_name"`
+	URL          string       `json:"url"`
+	FileName     string       `json:"file_name"`
+	DestDir      string       `json:"dest_dir"`
+	SecretName   string       `json:"secret_name"`
+	DownloadType DownloadType `json:"download_type"`
 }
 
 func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
@@ -157,22 +163,8 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	data, err := bucket.SecretData(ctx, req.SecretName)
+	err := downloadFile(ctx, req)
 	if err != nil {
-		err = fmt.Errorf("error fetching secret data: %w", err)
-		routerLog.Error(err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
-		return
-	}
-	bucketURI, err := uri.NormalizeURI(req.URL)
-	if err != nil {
-		routerLog.Error("error occurred while parsing bucket URI: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
-		return
-	}
-	err = bucket.DownloadFile(ctx, bucketURI, req.DestDir, req.FileName, data)
-	if err != nil {
-		err = fmt.Errorf("download error: %w", err)
 		routerLog.Error(err.Error())
 		serverutil.HttpError(w, http.StatusBadRequest)
 		return

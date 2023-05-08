@@ -1,4 +1,4 @@
-package downloadurl
+package fileutil
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 )
@@ -24,56 +23,56 @@ func TestDownloadFileFromURL(t *testing.T) {
 		name      string
 		url       string
 		content   httpContent
-		wantFiles []fileutil.File
+		wantFiles []File
 		wantErr   error
 	}{
 		{
 			"using path without extension",
 			"http://example.com/without_extension",
 			httpContent{},
-			[]fileutil.File{{Name: "without_extension"}},
+			[]File{{Name: "without_extension"}},
 			nil,
 		},
 		{
 			"without any filename info",
 			"http://example.com",
 			httpContent{},
-			[]fileutil.File{},
+			[]File{},
 			ErrNoFilename,
 		},
 		{
 			"using path with extension",
 			"http://example.com/with_extension.jar",
 			httpContent{},
-			[]fileutil.File{{Name: "with_extension.jar"}},
+			[]File{{Name: "with_extension.jar"}},
 			nil,
 		},
 		{
 			"filename from content-disposition filename",
 			"http://example.com/from_path.jar",
 			httpContent{contentDispFileName: "from_content_disposition.jar"},
-			[]fileutil.File{{Name: "from_content_disposition.jar"}},
+			[]File{{Name: "from_content_disposition.jar"}},
 			nil,
 		},
 		{
 			"filename from content-disposition filename and extension from content-type",
 			"http://example.com",
 			httpContent{contentType: "application/json", contentDispFileName: "from_content_disposition"},
-			[]fileutil.File{{Name: "from_content_disposition.json"}},
+			[]File{{Name: "from_content_disposition.json"}},
 			nil,
 		},
 		{
 			"filename and extension from only content-disposition",
 			"http://example.com",
 			httpContent{contentType: "application/json", contentDispFileName: "content.extension"},
-			[]fileutil.File{{Name: "content.extension"}},
+			[]File{{Name: "content.extension"}},
 			nil,
 		},
 		{
 			"filename from path and extension from content-type",
 			"http://example.com/from_path",
 			httpContent{contentType: "application/java-archive"},
-			[]fileutil.File{{Name: "from_path.jar"}},
+			[]File{{Name: "from_path.jar"}},
 			nil,
 		},
 	}
@@ -98,7 +97,7 @@ func TestDownloadFileFromURL(t *testing.T) {
 			if err != nil {
 				return
 			}
-			copiedFiles, err := fileutil.DirFileList(dstPath)
+			copiedFiles, err := DirFileList(dstPath)
 			require.Nil(t, err)
 			require.ElementsMatch(t, copiedFiles, tt.wantFiles)
 		})
@@ -113,7 +112,7 @@ func TestDownloadFileFromURL_DestinationPath(t *testing.T) {
 		dstPathExists bool
 		url           string
 		content       httpContent
-		wantFiles     []fileutil.File
+		wantFiles     []File
 		wantErr       bool
 	}{
 		{
@@ -121,7 +120,7 @@ func TestDownloadFileFromURL_DestinationPath(t *testing.T) {
 			false,
 			"http://example.com/filename",
 			httpContent{},
-			[]fileutil.File{},
+			[]File{},
 			true,
 		},
 		{
@@ -129,7 +128,7 @@ func TestDownloadFileFromURL_DestinationPath(t *testing.T) {
 			true,
 			"http://example.com/filename",
 			httpContent{},
-			[]fileutil.File{{Name: "filename"}},
+			[]File{{Name: "filename"}},
 			false,
 		},
 	}
@@ -160,7 +159,7 @@ func TestDownloadFileFromURL_DestinationPath(t *testing.T) {
 				require.ErrorContains(t, err, "no such file or directory")
 				return
 			}
-			copiedFiles, err := fileutil.DirFileList(dstPath)
+			copiedFiles, err := DirFileList(dstPath)
 			require.Nil(t, err)
 			require.ElementsMatch(t, copiedFiles, tt.wantFiles)
 		})
