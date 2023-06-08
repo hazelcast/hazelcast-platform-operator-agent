@@ -98,7 +98,7 @@ jobs:
         run: |
            sed -i "/Version of Hazelcast Platform Operator Agent.*/{n;s/default:.*/default:=\"${RELEASE_VERSION}\"/;}" ./api/v1alpha1/hazelcast_types.go
            sed -i "/platform-operator-agent/{s/version:.*/version: \"${RELEASE_VERSION}\"}/;}" ./api/v1alpha1/hazelcast_types.go
-           make generate-bundle-yaml
+           make sync-manifests
 
       - name: Commit And Push Changes
         run: |
