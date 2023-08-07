@@ -2,6 +2,7 @@ package bucket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
@@ -167,12 +169,28 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 	return os.Setenv(name, string(value))
 }
 
+func CheckAccessibility(ctx context.Context, b *blob.Bucket) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ok, err := b.IsAccessible(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("bucket is not accessible")
+	}
+	return nil
+}
+
 func DownloadFile(ctx context.Context, src, dst, filename string, secretData map[string][]byte) error {
 	b, err := OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
 	defer b.Close()
+	if err := CheckAccessibility(ctx, b); err != nil {
+		return err
+	}
 
 	exists, err := b.Exists(ctx, filename)
 	if err != nil {
@@ -193,6 +211,9 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 		return err
 	}
 	defer b.Close()
+	if err := CheckAccessibility(ctx, b); err != nil {
+		return err
+	}
 
 	iter := b.List(nil)
 	for {
@@ -203,7 +224,7 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 		if err != nil {
 			return err
 		}
-		// we only want top level files and no files under subfolders
+		// we only want top level files and no files under sub-folders
 		if path.Base(obj.Key) != obj.Key {
 			continue
 		}
