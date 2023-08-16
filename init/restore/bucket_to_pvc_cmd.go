@@ -109,9 +109,6 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		return err
 	}
 	defer b.Close()
-	if err := bucket.CheckAccessibility(ctx, b); err != nil {
-		return err
-	}
 
 	// find keys, they are sorted
 	keys, err := find(ctx, b)

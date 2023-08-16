@@ -54,11 +54,6 @@ func (t *task) process(ID uuid.UUID) {
 		t.err = err
 		return
 	}
-	if err := bucket.CheckAccessibility(t.ctx, b); err != nil {
-		backupLog.Error("task could not access the bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
-		t.err = err
-		return
-	}
 
 	backupsDir := path.Join(t.req.BackupBaseDir, DirName)
 
