@@ -3,19 +3,20 @@ package bucket
 import (
 	"context"
 	"fmt"
-	"gocloud.dev/blob"
-	"gocloud.dev/blob/gcsblob"
-	"gocloud.dev/gcp"
-	"golang.org/x/oauth2/google"
 	"io"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"gocloud.dev/blob"
+	"gocloud.dev/blob/gcsblob"
+	"gocloud.dev/gcp"
+	"golang.org/x/oauth2/google"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Blob storage types
