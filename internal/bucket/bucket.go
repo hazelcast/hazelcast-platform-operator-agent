@@ -181,10 +181,12 @@ func DownloadFile(ctx context.Context, src, dst, filename string, secretData map
 	if !exists {
 		return fmt.Errorf("not found: jar with the name not found: %v", filename)
 	}
+
 	if err = saveFile(ctx, b, filename, dst); err != nil {
 		return err
 	}
-	return nil
+
+	return b.Close()
 }
 
 func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][]byte) error {
@@ -203,7 +205,7 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 		if err != nil {
 			return err
 		}
-		// we only want top level files and no files under subfolders
+		// we only want top level files and no files under sub-folders
 		if path.Base(obj.Key) != obj.Key {
 			continue
 		}
@@ -213,7 +215,7 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 		}
 	}
 
-	return nil
+	return b.Close()
 }
 
 func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error {
@@ -240,5 +242,5 @@ func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error 
 		return err
 	}
 
-	return nil
+	return s.Close()
 }

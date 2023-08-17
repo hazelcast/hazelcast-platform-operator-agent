@@ -50,7 +50,7 @@ func (t *task) process(ID uuid.UUID) {
 
 	b, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
 	if err != nil {
-		backupLog.Error("task could not open bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		backupLog.Error("task could not open the bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
 		t.err = err
 		return
 	}
@@ -60,7 +60,7 @@ func (t *task) process(ID uuid.UUID) {
 	log.Println("TASK", ID, "Staring backup upload:", backupsDir, t.req.MemberID)
 	folderKey, err := UploadBackup(t.ctx, b, backupsDir, t.req.HazelcastCRName, t.req.MemberID)
 	if err != nil {
-		backupLog.Error("task could not upload to bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		backupLog.Error("task could not upload to the bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
 		t.err = err
 		return
 	}
@@ -69,10 +69,11 @@ func (t *task) process(ID uuid.UUID) {
 
 	backupKey, err := uri.AddFolderKeyToURI(bucketURI, folderKey)
 	if err != nil {
-		backupLog.Error("task could not upload backup: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		backupLog.Error("task could not add folder key to the URI: "+err.Error(), zap.Uint32("task id", ID.ID()))
 		t.err = err
 		return
 	}
 
+	t.err = b.Close()
 	t.backupKey = backupKey
 }

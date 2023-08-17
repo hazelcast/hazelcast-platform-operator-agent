@@ -97,7 +97,11 @@ func uploadBackup(ctx context.Context, bucket *blob.Bucket, name, backupDir, bas
 	}
 	defer w.Close()
 
-	return CreateArchive(w, backupDir, baseDirName)
+	if err := CreateArchive(w, backupDir, baseDirName); err != nil {
+		return err
+	}
+
+	return w.Close()
 }
 
 func CreateArchive(w io.Writer, dir, baseDirName string) error {

@@ -139,5 +139,5 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		return err
 	}
 
-	return nil
+	return b.Close()
 }
