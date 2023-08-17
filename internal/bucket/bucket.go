@@ -174,9 +174,11 @@ func DownloadFile(ctx context.Context, src, dst, filename string, secretData map
 	}
 	defer b.Close()
 
-	if exists, err := b.Exists(ctx, filename); err != nil {
+	exists, err := b.Exists(ctx, filename)
+	if err != nil {
 		return err
-	} else if !exists {
+	}
+	if !exists {
 		return fmt.Errorf("not found: jar with the name not found: %v", filename)
 	}
 
