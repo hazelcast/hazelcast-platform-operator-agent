@@ -37,7 +37,7 @@ func saveFromArchive(ctx context.Context, bucket *blob.Bucket, key, target strin
 	for {
 		header, err := t.Next()
 		if err == io.EOF {
-			return nil
+			break
 		}
 		if err != nil {
 			return err
@@ -48,6 +48,8 @@ func saveFromArchive(ctx context.Context, bucket *blob.Bucket, key, target strin
 			return err
 		}
 	}
+
+	return s.Close()
 }
 
 func saveFile(name string, info fs.FileInfo, src io.Reader) error {

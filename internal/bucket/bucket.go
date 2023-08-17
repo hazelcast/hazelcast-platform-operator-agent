@@ -166,24 +166,24 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 	return os.Setenv(name, string(value))
 }
 
-func DownloadFile(ctx context.Context, src, dst, filename string, secretData map[string][]byte) error {
+func DownloadFile(ctx context.Context, src, dst, filename string, secretData map[string][]byte) (err error) {
 	b, err := OpenBucket(ctx, src, secretData)
 	if err != nil {
 		return err
 	}
 	defer b.Close()
 
-	exists, err := b.Exists(ctx, filename)
-	if err != nil {
+	if exists, err := b.Exists(ctx, filename); err != nil {
 		return err
-	}
-	if !exists {
+	} else if !exists {
 		return fmt.Errorf("not found: jar with the name not found: %v", filename)
 	}
+
 	if err = saveFile(ctx, b, filename, dst); err != nil {
 		return err
 	}
-	return nil
+
+	return b.Close()
 }
 
 func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][]byte) error {
@@ -212,7 +212,7 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 		}
 	}
 
-	return nil
+	return b.Close()
 }
 
 func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error {
@@ -239,5 +239,5 @@ func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error 
 		return err
 	}
 
-	return nil
+	return s.Close()
 }

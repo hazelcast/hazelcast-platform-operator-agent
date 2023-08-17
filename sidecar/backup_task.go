@@ -74,5 +74,6 @@ func (t *task) process(ID uuid.UUID) {
 		return
 	}
 
+	t.err = b.Close()
 	t.backupKey = backupKey
 }
