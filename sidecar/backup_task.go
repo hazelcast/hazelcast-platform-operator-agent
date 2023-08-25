@@ -76,3 +76,40 @@ func (t *task) process(ID uuid.UUID) {
 
 	t.backupKey = backupKey
 }
+
+func (t *task) deleteFromBucket(ID uuid.UUID) {
+	backupLog.Info("task is deleting from bucket", zap.Uint32("task id", ID.ID()))
+
+	defer backupLog.Info("task finished deleting from bucket", zap.Uint32("task id", ID.ID()))
+
+	bucketURI, err := uri.NormalizeURI(t.req.BucketURL)
+	if err != nil {
+		backupLog.Error("error occurred while parsing bucket URI: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		t.err = err
+		return
+	}
+
+	backupLog.Info("bucket URI successfully normalized", zap.String("bucket URI", bucketURI))
+
+	secretData, err := bucket.SecretData(t.ctx, t.req.SecretName)
+	if err != nil {
+		backupLog.Error("error occurred while fetching secret: "+err.Error(), zap.Uint32("task ID", ID.ID()))
+		t.err = err
+		return
+	}
+
+	backupLog.Info("task successfully read secret", zap.Uint32("task id", ID.ID()), zap.String("secret name", t.req.SecretName))
+
+	b, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
+	if err != nil {
+		backupLog.Error("task could not open bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		t.err = err
+		return
+	}
+
+	if err := DeleteBackup(t.ctx, b); err != nil {
+		backupLog.Error("task could not delete from bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		t.err = err
+		return
+	}
+}
