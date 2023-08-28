@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gocloud.dev/blob"
 
 	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
@@ -78,6 +79,7 @@ func (t *task) process(ID uuid.UUID) {
 }
 
 func (t *task) deleteFromBucket(ID uuid.UUID) {
+	//ID to string
 	backupLog.Info("task is deleting from bucket", zap.Uint32("task id", ID.ID()))
 
 	defer backupLog.Info("task finished deleting from bucket", zap.Uint32("task id", ID.ID()))
@@ -112,4 +114,8 @@ func (t *task) deleteFromBucket(ID uuid.UUID) {
 		t.err = err
 		return
 	}
+}
+
+func DeleteBackup(ctx context.Context, b *blob.Bucket) error {
+	return b.Delete(ctx, DirName)
 }

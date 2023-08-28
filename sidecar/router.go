@@ -323,3 +323,28 @@ func tryDial(endpoint string) error {
 func healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
+func (s *Service) deleteFromBucketHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	ID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		serverutil.HttpError(w, http.StatusBadRequest)
+		return
+	}
+	s.Mu.RLock()
+	t, ok := s.Tasks[ID]
+	s.Mu.RUnlock()
+	if !ok {
+		routerLog.Error("task not found", zap.Uint32("task id", ID.ID()))
+		serverutil.HttpError(w, http.StatusNotFound)
+		return
+	}
+	t.deleteFromBucket(ID)
+	if t.err != nil {
+		routerLog.Error("error occurred while deleting from bucket", zap.Error(err))
+		serverutil.HttpError(w, http.StatusInternalServerError)
+		return
+	}
+	routerLog.Info("successfully deleted from bucket", zap.String("backup key", t.backupKey))
+	w.WriteHeader(http.StatusOK)
+}

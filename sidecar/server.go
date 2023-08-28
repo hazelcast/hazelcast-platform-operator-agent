@@ -48,7 +48,7 @@ func startServer(ctx context.Context, s *Cmd) error {
 		router.HandleFunc("/download", backupService.downloadFileHandler).Methods("POST")
 		router.HandleFunc("/dial", dialService.dialHandler).Methods("POST")
 		router.HandleFunc("/health", healthcheckHandler)
-		router.HandleFunc("/deletebucket/{bucket}", backupService.deleteFromBucketHandler).Methods("DELETE")
+		router.HandleFunc("/deletebucket/{id}", backupService.deleteFromBucketHandler).Methods("DELETE")
 		server := &http.Server{
 			Addr:    s.HTTPSAddress,
 			Handler: router,
