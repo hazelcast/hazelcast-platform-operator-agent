@@ -2,7 +2,6 @@ package sidecar
 
 import (
 	"context"
-	"log"
 	"path"
 
 	"github.com/google/uuid"
@@ -21,6 +20,8 @@ type task struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	backupKey string
+	bucketURI string
+	key       string
 	err       error
 }
 
@@ -57,7 +58,7 @@ func (t *task) process(ID uuid.UUID) {
 
 	backupsDir := path.Join(t.req.BackupBaseDir, DirName)
 
-	log.Println("TASK", ID, "Staring backup upload:", backupsDir, t.req.MemberID)
+	backupLog.Info("Staring backup upload", zap.Uint32("task id", ID.ID()), zap.String("backupsDir", backupsDir), zap.Int("memberID", t.req.MemberID))
 	folderKey, err := UploadBackup(t.ctx, b, backupsDir, t.req.HazelcastCRName, t.req.MemberID)
 	if err != nil {
 		backupLog.Error("task could not upload to the bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
@@ -67,13 +68,24 @@ func (t *task) process(ID uuid.UUID) {
 
 	backupLog.Info("task finished upload", zap.Uint32("task id", ID.ID()))
 
-	backupKey, err := uri.AddFolderKeyToURI(bucketURI, folderKey)
+	backupKey, err := uri.Join(bucketURI, folderKey)
 	if err != nil {
-		backupLog.Error("task could not add folder key to the URI: "+err.Error(), zap.Uint32("task id", ID.ID()))
+		backupLog.Error("task could format the URI: "+err.Error(), zap.Uint32("task id", ID.ID()))
 		t.err = err
 		return
 	}
 
 	t.err = b.Close()
 	t.backupKey = backupKey
+	t.bucketURI = bucketURI
+	t.key = folderKey
+}
+
+func (t *task) cleanup(ctx context.Context) error {
+	secretData, err := bucket.SecretData(ctx, t.req.SecretName)
+	if err != nil {
+		return err
+	}
+
+	return bucket.RemoveFile(ctx, t.bucketURI, t.key, secretData)
 }

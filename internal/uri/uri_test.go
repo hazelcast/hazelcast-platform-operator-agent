@@ -46,7 +46,7 @@ func TestAddFolderKeyToURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := AddFolderKeyToURI(tt.commonURI, tt.path)
+			got, err := Join(tt.commonURI, tt.path)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("addPrefix() error = %v, wantErr %v", err, tt.wantErr)
 				return

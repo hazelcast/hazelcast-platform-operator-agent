@@ -244,3 +244,13 @@ func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error 
 
 	return s.Close()
 }
+
+func RemoveFile(ctx context.Context, bucket, key string, secretData map[string][]byte) error {
+	b, err := OpenBucket(ctx, bucket, secretData)
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+
+	return b.Delete(ctx, key)
+}

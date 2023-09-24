@@ -2,6 +2,7 @@ package sidecar
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -10,14 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
-	"github.com/hazelcast/platform-operator-agent/internal/serverutil"
 )
 
 const (
@@ -45,9 +44,9 @@ type Resp struct {
 
 func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	var req Req
-	if err := serverutil.DecodeBody(r, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		routerLog.Error("error occurred while parsing body: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -55,7 +54,7 @@ func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	backupSeqs, err := fileutil.FolderSequence(backupsDir)
 	if err != nil {
 		routerLog.Error("error reading backup sequence directory: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -65,14 +64,14 @@ func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 		if err != nil {
 			routerLog.Error("error reading backup directory: " + err.Error())
-			serverutil.HttpError(w, http.StatusBadRequest)
+			httpError(w, http.StatusBadRequest)
 			return
 		}
 
 		if len(backupUUIDs) != 1 && len(backupUUIDs) <= req.MemberID {
 			err = fmt.Errorf("invalid UUID")
 			routerLog.Error(err.Error())
-			serverutil.HttpError(w, http.StatusBadRequest)
+			httpError(w, http.StatusBadRequest)
 			return
 		}
 
@@ -88,7 +87,7 @@ func (s *Service) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		routerLog.Info("found backup", zap.String("backup path", backupPath))
 	}
 
-	serverutil.HttpJSON(w, Resp{Backups: backups})
+	httpJSON(w, Resp{Backups: backups})
 }
 
 // UploadReq is a backup Service upload method request
@@ -107,16 +106,16 @@ type UploadResp struct {
 
 func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	var req UploadReq
-	if err := serverutil.DecodeBody(r, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		routerLog.Error("error occurred while parsing body: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
 	ID, err := uuid.NewRandom()
 	if err != nil {
 		routerLog.Error("error occurred while generating new UUID: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -135,7 +134,7 @@ func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	routerLog.Info("Starting new task", zap.Uint32("task id", ID.ID()))
 	go t.process(ID)
 
-	serverutil.HttpJSON(w, UploadResp{ID: ID})
+	httpJSON(w, UploadResp{ID: ID})
 }
 
 type DownloadType string
@@ -155,10 +154,10 @@ type DownloadFileReq struct {
 
 func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 	var req DownloadFileReq
-	if err := serverutil.DecodeBody(r, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		err = fmt.Errorf("error occurred while parsing body: %w", err)
 		routerLog.Error(err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -166,7 +165,7 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 	err := downloadFile(ctx, req)
 	if err != nil {
 		routerLog.Error(err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -184,7 +183,7 @@ func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -195,33 +194,33 @@ func (s *Service) statusHandler(w http.ResponseWriter, r *http.Request) {
 	// unknown task
 	if !ok {
 		routerLog.Error("task not found", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpError(w, http.StatusNotFound)
+		httpError(w, http.StatusNotFound)
 		return
 	}
 
 	// context error is set to non-nil by the first cancel call
 	if t.ctx.Err() == nil {
 		routerLog.Info("task is in progress: ", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpJSON(w, StatusResp{Status: "IN_PROGRESS"})
+		httpJSON(w, StatusResp{Status: "IN_PROGRESS"})
 		return
 	}
 
 	// error from the task could be just info that it was canceled
 	if errors.Is(t.err, context.Canceled) {
 		routerLog.Info("task is canceled: ", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
+		httpJSON(w, StatusResp{Status: "CANCELED", Message: t.err.Error()})
 		return
 	}
 
 	// there was some actual error
 	if t.err != nil {
 		routerLog.Info("task is failed", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
+		httpJSON(w, StatusResp{Status: "FAILURE", Message: t.err.Error()})
 		return
 	}
 
 	routerLog.Info("task is successful", zap.Uint32("task id", ID.ID()))
-	serverutil.HttpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
+	httpJSON(w, StatusResp{Status: "SUCCESS", BackupKey: t.backupKey})
 }
 
 func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
@@ -229,7 +228,7 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -238,7 +237,7 @@ func (s *Service) cancelHandler(w http.ResponseWriter, r *http.Request) {
 	s.Mu.RUnlock()
 	if !ok {
 		routerLog.Error("task not found", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpError(w, http.StatusNotFound)
+		httpError(w, http.StatusNotFound)
 		return
 	}
 
@@ -252,7 +251,7 @@ func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	ID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -260,13 +259,49 @@ func (s *Service) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.Tasks[ID]; !ok {
 		s.Mu.RUnlock()
 		routerLog.Error("task not found", zap.Uint32("task id", ID.ID()))
-		serverutil.HttpError(w, http.StatusNotFound)
+		httpError(w, http.StatusNotFound)
 		return
 	}
 	delete(s.Tasks, ID)
 	s.Mu.RUnlock()
 
 	routerLog.Info("task deleted successfully", zap.Uint32("task id", ID.ID()))
+}
+
+func (s *Service) cleanupHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	ID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+	id := ID.ID()
+
+	s.Mu.RLock()
+	t, ok := s.Tasks[ID]
+	s.Mu.RUnlock()
+
+	// unknown task
+	if !ok {
+		routerLog.Error("task not found", zap.Uint32("task id", id))
+		httpError(w, http.StatusNotFound)
+		return
+	}
+
+	// there was some error
+	if t.err != nil {
+		routerLog.Info("task failed", zap.Error(t.err), zap.Uint32("task id", id))
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+
+	if err := t.cleanup(r.Context()); err != nil {
+		routerLog.Info("task cleanup failed", zap.Error(err), zap.Uint32("task id", id))
+		return
+	}
+
+	routerLog.Info("task cleanup finished", zap.Uint32("task id", id))
 }
 
 type DialRequest struct {
@@ -282,9 +317,9 @@ type DialService struct{}
 
 func (d *DialService) dialHandler(w http.ResponseWriter, r *http.Request) {
 	var req DialRequest
-	if err := serverutil.DecodeBody(r, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		routerLog.Error("error occurred while parsing body: " + err.Error())
-		serverutil.HttpError(w, http.StatusBadRequest)
+		httpError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -295,7 +330,7 @@ func (d *DialService) dialHandler(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func(endpoint string) {
 			defer wg.Done()
-			err := tryDial(endpoint)
+			_, err := net.DialTimeout("tcp", endpoint, 3*time.Second)
 			if err != nil {
 				dialResp.Success = false
 				dialResp.ErrorMessages = append(dialResp.ErrorMessages, fmt.Sprintf("%s is not reachable", endpoint))
@@ -305,21 +340,32 @@ func (d *DialService) dialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
-	if len(dialResp.ErrorMessages) > 0 {
-		serverutil.HttpJSON(w, dialResp)
-	} else {
-		serverutil.HttpJSON(w, dialResp)
-	}
+	httpJSON(w, dialResp)
 }
 
-func tryDial(endpoint string) error {
-	_, err := net.DialTimeout("tcp", endpoint, 3*time.Second)
-	if err != nil {
+func healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func decodeBody(r *http.Request, v interface{}) error {
+	defer r.Body.Close()
+	d := json.NewDecoder(r.Body)
+	if err := d.Decode(v); err != nil {
 		return err
 	}
 	return nil
 }
 
-func healthcheckHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
+func httpError(w http.ResponseWriter, code int) {
+	http.Error(w, http.StatusText(code), code)
+}
+
+func httpJSON(w http.ResponseWriter, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	e := json.NewEncoder(w)
+	e.SetIndent("", "  ")
+	if err := e.Encode(v); err != nil {
+		httpError(w, http.StatusInternalServerError)
+		return
+	}
 }
