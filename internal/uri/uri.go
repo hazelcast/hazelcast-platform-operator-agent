@@ -48,7 +48,7 @@ func NormalizeURI(commonURI string) (uri string, err error) {
 	return formated.String(), nil
 }
 
-func AddFolderKeyToURI(commonURI, path string) (string, error) {
+func Join(commonURI, path string) (string, error) {
 	commonURI, err := NormalizeURI(commonURI)
 	if err != nil {
 		return "", err
