@@ -66,6 +66,10 @@ func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]b
 }
 
 func SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
+	if sn == "" {
+		return nil, nil
+	}
+
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -102,26 +106,23 @@ func namespace() (string, error) {
 }
 
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
-		return nil, err
-	}
-	if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
-		return nil, err
-	}
-	if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
-		return nil, err
+	if secret != nil {
+		if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
+			return nil, err
+		}
+		if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
+			return nil, err
+		}
+		if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
+			return nil, err
+		}
 	}
 
 	return blob.OpenBucket(ctx, bucketURL)
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	value, ok := secret[GCPCredentialFile]
-	if !ok {
-		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", GCPCredentialFile)
-	}
-
-	creds, err := google.CredentialsFromJSON(ctx, value, "https://www.googleapis.com/auth/cloud-platform")
+	creds, err := credentials(ctx, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -147,13 +148,30 @@ func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*
 	return blob.PrefixedBucket(bucket, u.Query().Get("prefix")), nil
 }
 
-func openAZURE(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if err := setCredentialEnv(secret, AzureStorageAccount, AzureEnvStorageAccount); err != nil {
-		return nil, err
+const scope = "https://www.googleapis.com/auth/cloud-platform"
+
+func credentials(ctx context.Context, secret map[string][]byte) (*google.Credentials, error) {
+	if secret == nil {
+		return google.FindDefaultCredentials(ctx, scope)
 	}
 
-	if err := setCredentialEnv(secret, AzureStorageKey, AzureEnvStorageKey); err != nil {
-		return nil, err
+	value, ok := secret[GCPCredentialFile]
+	if !ok {
+		return nil, fmt.Errorf("invalid secret for GCP : missing credential: %v", GCPCredentialFile)
+	}
+
+	return google.CredentialsFromJSON(ctx, value, scope)
+}
+
+func openAZURE(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
+	if secret != nil {
+		if err := setCredentialEnv(secret, AzureStorageAccount, AzureEnvStorageAccount); err != nil {
+			return nil, err
+		}
+
+		if err := setCredentialEnv(secret, AzureStorageKey, AzureEnvStorageKey); err != nil {
+			return nil, err
+		}
 	}
 
 	return blob.OpenBucket(ctx, bucketURL)
