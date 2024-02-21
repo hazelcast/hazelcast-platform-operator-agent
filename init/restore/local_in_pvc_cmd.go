@@ -66,6 +66,18 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitFailure
 	}
 
+	// Check if the restore dir already exists.
+	// This case happens when trying to restore into a PersistentVolume that already contains a restore (hot-restart) dir. 
+	dirs, err := fileutil.FolderUUIDs(r.BackupBaseDir)
+	if err != nil {
+		bucketToPVCLog.Error("an error occurred while checking if restore dir" + err.Error())
+		return subcommands.ExitFailure
+	}
+	if len(dirs) > 0 {
+		bucketToPVCLog.Error("restore dir already exists: " + dirs[0].Name())
+		return subcommands.ExitSuccess
+	}
+
 	if !hostnameRE.MatchString(r.Hostname) {
 		localInPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
@@ -105,7 +117,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 	return subcommands.ExitSuccess
 }
 
-func copyBackupPVC(backupDir, destDir string) error {
+func copyBackupPVC(backupDir, dstDir string) error {
 	backupUUIDs, err := fileutil.FolderUUIDs(backupDir)
 	if err != nil {
 		return err
@@ -115,21 +127,21 @@ func copyBackupPVC(backupDir, destDir string) error {
 		return fmt.Errorf("incorrect number of backups %d in backup sequence folder", len(backupUUIDs))
 	}
 
-	destBackupUUIDS, err := fileutil.FolderUUIDs(destDir)
+	dstBackupUUIDS, err := fileutil.FolderUUIDs(dstDir)
 	if err != nil {
 		return err
 	}
 
 	// Remove the hot-restart folder at the destination
-	for _, uuid := range destBackupUUIDS {
-		err = os.RemoveAll(path.Join(destDir, uuid.Name()))
+	for _, uuid := range dstBackupUUIDS {
+		err = os.RemoveAll(path.Join(dstDir, uuid.Name()))
 		if err != nil {
 			return err
 		}
 	}
 
 	bk := backupUUIDs[0].Name()
-	return copyDir(path.Join(backupDir, bk), path.Join(destDir, bk))
+	return copyDir(path.Join(backupDir, bk), path.Join(dstDir, bk))
 }
 
 func lockFileName(restoreId string, memberId int) string {

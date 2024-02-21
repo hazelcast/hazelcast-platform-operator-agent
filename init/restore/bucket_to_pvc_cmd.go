@@ -50,6 +50,18 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 		return subcommands.ExitFailure
 	}
 
+	// Check if the restore dir already exists.
+	// This case happens when trying to restore into a PersistentVolume that already contains a restore (hot-restart) dir. 
+	dirs, err := fileutil.FolderUUIDs(r.Destination)
+	if err != nil {
+		bucketToPVCLog.Error("an error occurred while checking if restore dir" + err.Error())
+		return subcommands.ExitFailure
+	}
+	if len(dirs) > 0 {
+		bucketToPVCLog.Error("restore dir already exists: " + dirs[0].Name())
+		return subcommands.ExitSuccess
+	}
+
 	if !hostnameRE.MatchString(r.Hostname) {
 		bucketToPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
