@@ -50,15 +50,13 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 		return subcommands.ExitFailure
 	}
 
-	// Check if the restore dir already exists.
-	// This case happens when trying to restore into a PersistentVolume that already contains a restore (hot-restart) dir. 
-	dirs, err := fileutil.FolderUUIDs(r.Destination)
+	restoreDirExists, err := isRestoreDirExisting(r.Destination)
 	if err != nil {
-		bucketToPVCLog.Error("an error occurred while checking if restore dir" + err.Error())
+		bucketToPVCLog.Error("an error occurred while checking existing restore dir" + err.Error())
 		return subcommands.ExitFailure
 	}
-	if len(dirs) > 0 {
-		bucketToPVCLog.Error("restore dir already exists: " + dirs[0].Name())
+	if restoreDirExists {
+		bucketToPVCLog.Error("restore dir already exists")
 		return subcommands.ExitSuccess
 	}
 
