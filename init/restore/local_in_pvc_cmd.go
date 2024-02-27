@@ -19,10 +19,10 @@ import (
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
-	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
 const restoreLock = "restore_lock"
+const destBaseDir = "/data/hot-restart"
 
 var (
 	// StatefulSet hostname is always DSN RFC 1123 and number
@@ -40,6 +40,7 @@ var (
 type LocalInPVCCmd struct {
 	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
 	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
+	BackupDir                string `envconfig:"RESTORE_LOCAL_BACKUP_BACKUP_DIR"`
 	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
 }
@@ -54,6 +55,7 @@ func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.BackupSequenceFolderName, "src", "", "src backup folder path")
 	f.StringVar(&r.BackupBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
+	f.StringVar(&r.BackupDir, "backup-dir", "hot-backup", "relative directory of hot backup")
 	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
 }
 
@@ -85,7 +87,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackupPVC(path.Join(r.BackupBaseDir, sidecar.DirName, r.BackupSequenceFolderName), r.BackupBaseDir)
+	err = copyBackupPVC(path.Join(r.BackupBaseDir, r.BackupDir, r.BackupSequenceFolderName), destBaseDir)
 	if err != nil {
 		localInPVCLog.Error("copy backup failed: " + err.Error())
 		return subcommands.ExitFailure
