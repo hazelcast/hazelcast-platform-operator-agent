@@ -80,7 +80,7 @@ jobs:
 
   update_agent_version_in_operator_repo:
     name: Update Version And Create a PR in 'hazelcast-platform-operator' Repository
-    needs: 'publish-release-image'
+    needs: "publish-release-image"
     runs-on: ubuntu-latest
     env:
       REPO_OWNER: hazelcast
@@ -94,11 +94,18 @@ jobs:
           ref: main
           token: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
 
+      - name: Set up Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.19"
+
       - name: Update Agent Version At Platform Operator Source Code
         run: |
-           sed -i "/Version of Hazelcast Platform Operator Agent.*/{n;s/default:.*/default:=\"${RELEASE_VERSION}\"/;}" ./api/v1alpha1/hazelcast_types.go
-           sed -i "/platform-operator-agent/{s/version:.*/version: \"${RELEASE_VERSION}\"}/;}" ./api/v1alpha1/hazelcast_types.go
-           make sync-manifests
+          sed -i "/Version of Hazelcast Platform Operator Agent.*/{n;s/default:.*/default:=\"${RELEASE_VERSION}\"/;}" ./api/v1alpha1/hazelcast_types.go
+          sed -i "/platform-operator-agent/{s/version:.*/version: \"${RELEASE_VERSION}\"}/;}" ./api/v1alpha1/hazelcast_types.go
+          make sync-manifests
+          go get github.com/hazelcast/platform-operator-agent@v${RELEASE_VERSION}
+          go mod tidy
 
       - name: Commit And Push Changes
         run: |
@@ -119,7 +126,7 @@ jobs:
 
   slack_notify:
     name: Slack Notify
-    needs: [ 'publish-release-image','update_agent_version_in_operator_repo' ]
+    needs: ["publish-release-image", "update_agent_version_in_operator_repo"]
     if: always() &&  needs.publish-release-image.result != 'success'
     runs-on: ubuntu-latest
     steps:
