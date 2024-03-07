@@ -17,7 +17,6 @@ import (
 
 	"gocloud.dev/blob"
 
-	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/sidecar"
 )
 
@@ -174,14 +173,4 @@ func createArchiveFile(dir, baseDir, outPath string) error {
 	defer outFile.Close()
 
 	return sidecar.CreateArchive(outFile, dir, baseDir)
-}
-
-// isRestoreDirExisting checks if the restore dir already exists.
-// It happens when trying to restore a backup into a PersistentVolume that already contains a restore (hot-restart) dir.
-func isRestoreDirExisting(path string) (bool, error) {
-	dirs, err := fileutil.FolderUUIDs(path)
-	if err != nil {
-		return false, err
-	}
-	return len(dirs) > 0, nil
 }
