@@ -50,16 +50,6 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 		return subcommands.ExitFailure
 	}
 
-	restoreDirExists, err := isRestoreDirExisting(r.Destination)
-	if err != nil {
-		bucketToPVCLog.Error("an error occurred while checking existing restore dir" + err.Error())
-		return subcommands.ExitFailure
-	}
-	if restoreDirExists {
-		bucketToPVCLog.Error("restore dir already exists")
-		return subcommands.ExitSuccess
-	}
-
 	if !hostnameRE.MatchString(r.Hostname) {
 		bucketToPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
