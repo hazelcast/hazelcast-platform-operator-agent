@@ -52,7 +52,7 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 
 	restoreDirExists, err := isRestoreDirExisting(r.Destination)
 	if err != nil {
-		bucketToPVCLog.Error("an error occurred while checking if restore dir exists" + err.Error())
+		bucketToPVCLog.Error("an error occurred while checking existing restore dir" + err.Error())
 		return subcommands.ExitFailure
 	}
 	if restoreDirExists {
