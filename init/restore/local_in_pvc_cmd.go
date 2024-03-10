@@ -22,7 +22,7 @@ import (
 )
 
 const restoreLock = "restore_lock"
-const destBaseDir = "/data/hot-restart"
+const destBaseDir = "/data/persistence"
 
 var (
 	// StatefulSet hostname is always DSN RFC 1123 and number
