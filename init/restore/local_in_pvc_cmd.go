@@ -42,6 +42,7 @@ type LocalInPVCCmd struct {
 	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
 	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
+	HazelcastId              string `envconfig:"RESTORE_HAZELCAST_ID"`
 }
 
 func (*LocalInPVCCmd) Name() string     { return "restore_pvc_local" }
@@ -77,7 +78,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.BackupBaseDir, lockFileName(r.RestoreID, id))
+	lock := filepath.Join(r.BackupBaseDir, lockFileName(r.HazelcastId, r.RestoreID, id))
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
@@ -132,8 +133,8 @@ func copyBackupPVC(backupDir, destDir string) error {
 	return copyDir(path.Join(backupDir, bk), path.Join(destDir, bk))
 }
 
-func lockFileName(restoreId string, memberId int) string {
-	return fmt.Sprintf(".%s.%s.%d", restoreLock, restoreId, memberId)
+func lockFileName(hazelcastId string, restoreId string, memberId int) string {
+	return fmt.Sprintf(".%s.%s.%s.%d", restoreLock, hazelcastId, restoreId, memberId)
 }
 
 func copyDir(source, destination string) error {

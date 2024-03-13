@@ -26,6 +26,7 @@ type BucketToPVCCmd struct {
 	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
 	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
 	RestoreID   string `envconfig:"RESTORE_ID"`
+	HazelcastId string `envconfig:"RESTORE_HAZELCAST_ID"`
 }
 
 func (*BucketToPVCCmd) Name() string     { return "restore_pvc" }
@@ -67,7 +68,7 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	}
 	bucketToPVCLog.Info("bucket uri normalized successfully", zap.String("bucket URI", bucketURI))
 
-	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
+	lock := filepath.Join(r.Destination, lockFileName(r.HazelcastId, r.RestoreID, id))
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
