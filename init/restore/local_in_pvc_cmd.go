@@ -22,7 +22,6 @@ import (
 )
 
 const restoreLock = "restore_lock"
-const destBaseDir = "/data/persistence"
 
 var (
 	// StatefulSet hostname is always DSN RFC 1123 and number
@@ -87,7 +86,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackupPVC(path.Join(r.BackupBaseDir, r.BackupDir, r.BackupSequenceFolderName), destBaseDir)
+	err = copyBackupPVC(path.Join(r.BackupBaseDir, r.BackupDir, r.BackupSequenceFolderName), r.BackupBaseDir)
 	if err != nil {
 		localInPVCLog.Error("copy backup failed: " + err.Error())
 		return subcommands.ExitFailure
