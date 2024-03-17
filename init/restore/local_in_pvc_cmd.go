@@ -38,7 +38,8 @@ var (
 
 type LocalInPVCCmd struct {
 	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
-	BackupBaseDir            string `envconfig:"RESTORE_LOCAL_BACKUP_BASE_DIR"`
+	BackupSourceBaseDir      string `envconfig:"RESTORE_LOCAL_BACKUP_SRC_BASE_DIR"`
+	BackupDestinationBaseDir string `envconfig:"RESTORE_LOCAL_BACKUP_DEST_BASE_DIR"`
 	BackupDir                string `envconfig:"RESTORE_LOCAL_BACKUP_BACKUP_DIR"`
 	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
@@ -53,7 +54,7 @@ func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
 	hostname, _ := os.Hostname()
 	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.BackupSequenceFolderName, "src", "", "src backup folder path")
-	f.StringVar(&r.BackupBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
+	f.StringVar(&r.BackupSourceBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
 	f.StringVar(&r.BackupDir, "backup-dir", "hot-backup", "relative directory of hot backup")
 	f.StringVar(&r.RestoreID, "restore-id", "", "Restore ID for which the lock will be created.")
 }
@@ -78,7 +79,7 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitFailure
 	}
 
-	lock := filepath.Join(r.BackupBaseDir, lockFileName(r.RestoreID, id))
+	lock := filepath.Join(r.BackupSourceBaseDir, lockFileName(r.RestoreID, id))
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restoreLocal lock exists exit
@@ -86,13 +87,15 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitSuccess
 	}
 
-	err = copyBackupPVC(path.Join(r.BackupBaseDir, r.BackupDir, r.BackupSequenceFolderName), r.BackupBaseDir)
+	src := path.Join(r.BackupSourceBaseDir, r.BackupDir, r.BackupSequenceFolderName)
+	err = copyBackupPVC(src, r.BackupDestinationBaseDir)
 	if err != nil {
 		localInPVCLog.Error("copy backup failed: " + err.Error())
 		return subcommands.ExitFailure
 	}
+	localInPVCLog.Info(fmt.Sprintf("Backup successfully copied from %s to %s", src, r.BackupDestinationBaseDir))
 
-	if err = cleanupLocks(r.BackupBaseDir, id); err != nil {
+	if err = cleanupLocks(r.BackupSourceBaseDir, id); err != nil {
 		localInPVCLog.Error("error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
