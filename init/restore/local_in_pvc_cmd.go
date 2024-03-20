@@ -119,6 +119,13 @@ func copyBackupPVC(backupDir, destDir string) error {
 		return fmt.Errorf("incorrect number of backups %d in backup sequence folder", len(backupUUIDs))
 	}
 
+	if _, err = os.Stat(destDir); os.IsNotExist(err) {
+		err = os.Mkdir(destDir, 0755)
+		if err != nil {
+			return err
+		}
+	}
+
 	destBackupUUIDS, err := fileutil.FolderUUIDs(destDir)
 	if err != nil {
 		return err
