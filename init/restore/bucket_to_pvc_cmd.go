@@ -120,6 +120,13 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		return fmt.Errorf("member index %d is greater than number of archived backup files %d", id, len(keys))
 	}
 
+	if _, err = os.Stat(dst); os.IsNotExist(err) {
+		err = os.Mkdir(dst, 0755)
+		if err != nil {
+			return err
+		}
+	}
+
 	// find backup UUIDs, they are sorted
 	hotRestartUUIDs, err := fileutil.FolderUUIDs(dst)
 	if err != nil {
