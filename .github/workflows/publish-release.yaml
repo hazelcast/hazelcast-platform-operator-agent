@@ -97,7 +97,7 @@ jobs:
       - name: Set up Golang
         uses: actions/setup-go@v3
         with:
-          go-version: "1.19"
+          go-version: "1.20"
 
       - name: Update Agent Version At Platform Operator Source Code
         run: |
