@@ -171,6 +171,29 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+type BundleReq struct {
+	URL        string `json:"url"`
+	SecretName string `json:"secret_name"`
+	DestDir    string `json:"dest_dir"`
+}
+
+func (s *Service) bundleHandler(w http.ResponseWriter, r *http.Request) {
+	var req BundleReq
+	if err := decodeBody(r, &req); err != nil {
+		err = fmt.Errorf("error occurred while parsing body: %w", err)
+		routerLog.Error(err.Error())
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+
+	if err := downloadBundle(r.Context(), req); err != nil {
+		routerLog.Error(err.Error())
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // StatusResp is a backup Service task status response
 type StatusResp struct {
 	Status    string `json:"status"`
