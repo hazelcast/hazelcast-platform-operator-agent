@@ -9,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"gocloud.dev/blob"
+
 	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
@@ -77,19 +79,27 @@ func downloadBundle(ctx context.Context, req BundleReq) error {
 		if path.Base(obj.Key) != obj.Key {
 			continue
 		}
-		s, err := b.NewReader(ctx, obj.Key, nil)
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		f, err := w.Create(obj.Key)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(f, s)
+		err = readZip(ctx, b, obj, w)
 		if err != nil {
 			return err
 		}
 	}
 	return w.Close()
+}
+
+func readZip(ctx context.Context, b *blob.Bucket, obj *blob.ListObject, w *zip.Writer) error {
+	r, err := b.NewReader(ctx, obj.Key, nil)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	f, err := w.Create(obj.Key)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	return nil
 }
