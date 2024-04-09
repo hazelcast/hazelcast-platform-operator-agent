@@ -79,8 +79,7 @@ func downloadBundle(ctx context.Context, req BundleReq) error {
 		if path.Base(obj.Key) != obj.Key {
 			continue
 		}
-		err = readZip(ctx, b, obj, w)
-		if err != nil {
+		if err = readZip(ctx, b, obj, w); err != nil {
 			return err
 		}
 	}
