@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . ./
 
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -v -o platform-operator-agent
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -o platform-operator-agent
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
