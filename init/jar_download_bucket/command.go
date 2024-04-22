@@ -26,7 +26,7 @@ type Cmd struct {
 }
 
 func (*Cmd) Name() string     { return "jar-download-bucket" }
-func (*Cmd) Synopsis() string { return "Run Download Bucket agent" }
+func (*Cmd) Synopsis() string { return "Run Download Buckets agent" }
 func (*Cmd) Usage() string    { return "" }
 
 func (r *Cmd) SetFlags(f *flag.FlagSet) {

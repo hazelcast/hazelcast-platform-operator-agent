@@ -1,6 +1,7 @@
 package bucket
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
 	"io"
@@ -17,6 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 // Blob storage types
@@ -234,6 +237,72 @@ func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][
 	}
 
 	return b.Close()
+}
+
+type BundleReq struct {
+	URL        string `json:"url"`
+	SecretName string `json:"secret_name"`
+	DestDir    string `json:"dest_dir"`
+}
+
+func DownloadBundle(ctx context.Context, req BundleReq) error {
+	secretData, err := SecretData(ctx, req.SecretName)
+	if err != nil {
+		return err
+	}
+	bucketURI, err := uri.NormalizeURI(req.URL)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Create(filepath.Clean(req.DestDir))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	b, err := OpenBucket(ctx, bucketURI, secretData)
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+
+	w := zip.NewWriter(f)
+	iter := b.List(nil)
+	for {
+		obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		// we only want top level files and no files under sub-folders
+		if path.Base(obj.Key) != obj.Key {
+			continue
+		}
+		if err = addToZip(ctx, b, obj, w); err != nil {
+			return err
+		}
+	}
+	return w.Close()
+}
+
+func addToZip(ctx context.Context, b *blob.Bucket, obj *blob.ListObject, w *zip.Writer) error {
+	r, err := b.NewReader(ctx, obj.Key, nil)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	f, err := w.Create(obj.Key)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error {

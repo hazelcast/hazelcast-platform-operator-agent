@@ -18,6 +18,11 @@ type Config struct {
 type Download struct {
 	Bucket *downloadbucket.Cmd `yaml:"bucket,omitempty"`
 	URL    *downloadurl.Cmd    `yaml:"url,omitempty"`
+	Bundle *Bundle             `yaml:"bundle,omitempty"`
+}
+
+type Bundle struct {
+	Buckets []downloadbucket.Cmd `yaml:"buckets,omitempty"`
 }
 
 type Restore struct {

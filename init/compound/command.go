@@ -5,13 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
 
@@ -66,7 +66,7 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 	if err := g.Wait(); err != nil {
 		log.Error("error during execution: " + err.Error())
 	}
-	time.Sleep(1000 * time.Second)
+	log.Info("Successfully executed compound command")
 	return subcommands.ExitSuccess
 }
 
@@ -83,6 +83,21 @@ func executeDownloadCommands(ctx context.Context, d *Download, f *flag.FlagSet, 
 		if s := d.URL.Execute(ctx, f, args); s != subcommands.ExitSuccess {
 			return fmt.Errorf("error executing URL download command")
 		}
+	}
+	if d.Bundle != nil {
+		g := new(errgroup.Group)
+		for _, cmd := range d.Bundle.Buckets {
+			cmd := cmd
+			g.Go(func() error {
+				log.Info("Download bundle for " + cmd.Destination)
+				return bucket.DownloadBundle(ctx, bucket.BundleReq{
+					URL:        cmd.BucketURI,
+					SecretName: cmd.SecretName,
+					DestDir:    cmd.Destination,
+				})
+			})
+		}
+		return g.Wait()
 	}
 	return nil
 }
