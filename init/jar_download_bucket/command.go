@@ -20,9 +20,9 @@ const bucketLock = ".download_bucket"
 var log = logger.New().Named("download_bucket")
 
 type Cmd struct {
-	Destination string `envconfig:"JDB_DESTINATION"`
-	SecretName  string `envconfig:"JDB_SECRET_NAME"`
-	BucketURI   string `envconfig:"JDB_BUCKET_URI"`
+	Destination string `envconfig:"JDB_DESTINATION" yaml:"destination"`
+	SecretName  string `envconfig:"JDB_SECRET_NAME" yaml:"secretName"`
+	BucketURI   string `envconfig:"JDB_BUCKET_URI" yaml:"bucketURI"`
 }
 
 func (*Cmd) Name() string     { return "jar-download-bucket" }

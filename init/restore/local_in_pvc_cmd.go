@@ -37,12 +37,12 @@ var (
 )
 
 type LocalInPVCCmd struct {
-	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME"`
-	BackupSourceBaseDir      string `envconfig:"RESTORE_LOCAL_BACKUP_SRC_BASE_DIR"`
-	BackupDestinationBaseDir string `envconfig:"RESTORE_LOCAL_BACKUP_DEST_BASE_DIR"`
-	BackupDir                string `envconfig:"RESTORE_LOCAL_BACKUP_BACKUP_DIR"`
-	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME"`
-	RestoreID                string `envconfig:"RESTORE_LOCAL_ID"`
+	BackupSequenceFolderName string `envconfig:"RESTORE_LOCAL_BACKUP_FOLDER_NAME" yaml:"backupSequenceFolderName"`
+	BackupSourceBaseDir      string `envconfig:"RESTORE_LOCAL_BACKUP_SRC_BASE_DIR" yaml:"backupSourceBaseDir"`
+	BackupDestinationBaseDir string `envconfig:"RESTORE_LOCAL_BACKUP_DEST_BASE_DIR" yaml:"backupDestinationBaseDir"`
+	BackupDir                string `envconfig:"RESTORE_LOCAL_BACKUP_BACKUP_DIR" yaml:"backupDir"`
+	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME" yaml:"hostname"`
+	RestoreID                string `envconfig:"RESTORE_LOCAL_ID" yaml:"restoreID"`
 }
 
 func (*LocalInPVCCmd) Name() string     { return "restore_pvc_local" }

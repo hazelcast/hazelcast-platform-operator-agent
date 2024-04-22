@@ -17,7 +17,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
+
+var log = logger.New().Named("whatever")
 
 // Blob storage types
 const (
