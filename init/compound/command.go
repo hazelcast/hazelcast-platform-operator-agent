@@ -43,6 +43,10 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 	}
 
 	data, err := os.ReadFile(c.ConfigFileLocation)
+	if err != nil {
+		log.Error("Unable to read YAML config file: " + err.Error())
+		return subcommands.ExitFailure
+	}
 	cfg := &ConfigWrapper{}
 	if err = yaml.Unmarshal(data, cfg); err != nil {
 		log.Error("Unable to unmarshal YAML config data: " + err.Error())
