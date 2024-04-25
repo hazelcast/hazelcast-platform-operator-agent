@@ -53,7 +53,7 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 		return subcommands.ExitFailure
 	}
 	if cfg.InitContainer == nil {
-		log.Info("Not initContainer config provided.")
+		log.Info("No initContainer config provided.")
 		return subcommands.ExitSuccess
 	}
 	g := new(errgroup.Group)
