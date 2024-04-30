@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/session"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
+	"gocloud.dev/blob/s3blob"
 	"gocloud.dev/gcp"
 	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,19 +111,40 @@ func namespace() (string, error) {
 }
 
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if secret != nil {
-		if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
-			return nil, err
-		}
-		if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
-			return nil, err
-		}
-		if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
-			return nil, err
-		}
+	if secret == nil {
+		return openAWSWithSession(ctx, bucketURL)
+	}
+
+	if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
+		return nil, err
+	}
+	if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
+		return nil, err
+	}
+	if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
+		return nil, err
 	}
 
 	return blob.OpenBucket(ctx, bucketURL)
+}
+
+func openAWSWithSession(ctx context.Context, bucketURL string) (*blob.Bucket, error) {
+	s, err := session.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(bucketURL)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket, err := s3blob.OpenBucket(ctx, s, u.Host, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return blob.PrefixedBucket(bucket, u.Query().Get("prefix")), nil
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
