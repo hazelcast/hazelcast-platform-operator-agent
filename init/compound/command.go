@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
@@ -56,6 +58,9 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 		log.Info("No initContainer config provided.")
 		return subcommands.ExitSuccess
 	}
+
+	err = createLiteMemberEnvVar(cfg.InitContainer.LiteMemberCount)
+
 	g := new(errgroup.Group)
 	g.Go(func() error {
 		return executeDownloadCommands(ctx, cfg.InitContainer.Download, f, args)
@@ -115,6 +120,33 @@ func executeRestoreCommands(ctx context.Context, r *Restore, f *flag.FlagSet, ar
 		if s := r.PVC.Execute(ctx, f, args); s != subcommands.ExitSuccess {
 			return fmt.Errorf("error executing PVC restore command")
 		}
+	}
+	return nil
+}
+
+// createLiteMemberEnvVar creates a file consist of HZ_LITEMEMBER_ENABLED environment variable
+func createLiteMemberEnvVar(liteMemberCount int) error {
+	re := regexp.MustCompile(`\d+$`) // regex for hostname, such as hazelcast-0
+	match := re.FindString(os.Getenv("HOSTNAME"))
+	index, err := strconv.Atoi(match)
+	if err != nil {
+		return err
+	}
+	var envFile *os.File
+	var liteMemberEnvVar string
+	if index < liteMemberCount { // if lite member count is 1, then it means hazelcast-0 is lite member
+		envFile, err = os.Create("/tmp/env_vars")
+		if err != nil {
+			return err
+		}
+		defer envFile.Close()
+		liteMemberEnvVar = "HZ_LITEMEMBER_ENABLED=false"
+	} else {
+
+	}
+	_, err = envFile.WriteString(liteMemberEnvVar)
+	if err != nil {
+		return err
 	}
 	return nil
 }

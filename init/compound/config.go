@@ -11,8 +11,9 @@ type ConfigWrapper struct {
 }
 
 type Config struct {
-	Download *Download `yaml:"download,omitempty"`
-	Restore  *Restore  `yaml:"restore,omitempty"`
+	Download        *Download `yaml:"download,omitempty"`
+	Restore         *Restore  `yaml:"restore,omitempty"`
+	LiteMemberCount int       `yaml:"liteMemberCount"`
 }
 
 type Download struct {
