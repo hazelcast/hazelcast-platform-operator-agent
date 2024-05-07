@@ -143,9 +143,9 @@ func createLiteMemberEnvVar(liteMemberCount int) error {
 			return err
 		}
 		defer envFile.Close()
-		liteMemberEnvVar = "HZ_LITEMEMBER_ENABLED=false"
+		liteMemberEnvVar = "HZ_LITEMEMBER_ENABLED=true"
 	} else {
-
+		liteMemberEnvVar = "HZ_LITEMEMBER_ENABLED=false"
 	}
 	_, err = envFile.WriteString(liteMemberEnvVar)
 	if err != nil {
