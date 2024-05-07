@@ -59,7 +59,10 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 		return subcommands.ExitSuccess
 	}
 
-	err = createLiteMemberEnvVar(cfg.InitContainer.LiteMemberCount)
+	if err = createLiteMemberEnvVar(cfg.InitContainer.LiteMemberCount); err != nil {
+		log.Error("error during creating lite member env var: " + err.Error())
+		return subcommands.ExitFailure
+	}
 
 	g := new(errgroup.Group)
 	g.Go(func() error {
