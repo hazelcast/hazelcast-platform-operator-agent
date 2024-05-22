@@ -74,16 +74,36 @@ func executeDownloadCommands(ctx context.Context, d *Download, f *flag.FlagSet, 
 	if d == nil {
 		return nil
 	}
-	if d.Bucket != nil {
-		if s := d.Bucket.Execute(ctx, f, args); s != subcommands.ExitSuccess {
-			return fmt.Errorf("error executing bucket download command")
-		}
+
+	g := new(errgroup.Group)
+	for _, b := range d.Buckets {
+		b := b
+		g.Go(func() error {
+			if s := b.Execute(ctx, f, args); s != subcommands.ExitSuccess {
+				return fmt.Errorf("error executing bucket download command")
+			}
+			return nil
+		})
 	}
-	if d.URL != nil {
-		if s := d.URL.Execute(ctx, f, args); s != subcommands.ExitSuccess {
-			return fmt.Errorf("error executing URL download command")
-		}
+	err := g.Wait()
+	if err != nil {
+		return err
 	}
+
+	for _, u := range d.URLs {
+		u := u
+		g.Go(func() error {
+			if s := u.Execute(ctx, f, args); s != subcommands.ExitSuccess {
+				return fmt.Errorf("error executing URL download command")
+			}
+			return nil
+		})
+	}
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
 	if d.Bundle != nil {
 		g := new(errgroup.Group)
 		for _, cmd := range d.Bundle.Buckets {
