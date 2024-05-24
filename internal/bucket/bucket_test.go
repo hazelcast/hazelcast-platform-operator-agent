@@ -232,13 +232,13 @@ func TestSecretReader_SecretData(t *testing.T) {
 }
 
 func fakeSecretReader(name string, data map[string][]byte) SecretReader {
-	secret := corev1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "default",
 		},
 		Data: data,
 	}
-	c := fake.NewSimpleClientset(&secret)
+	c := fake.NewSimpleClientset(secret)
 	return SecretReader{SecretInterface: c.CoreV1().Secrets("default")}
 }
