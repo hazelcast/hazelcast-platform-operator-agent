@@ -21,7 +21,7 @@ func Test_Execute_BundleCommand(t *testing.T) {
 	conigF, err := os.CreateTemp(dir, "config.yaml")
 	require.Nil(t, err)
 	bucketPath := path.Join(dir, "bucket")
-	err = fileutil.CreateFiles(bucketPath, []fileutil.File{{"my-jar.jar", false}}, true)
+	err = fileutil.CreateFiles(bucketPath, []fileutil.File{{Name: "my-jar.jar", IsDir: false}}, true)
 	require.Nil(t, err)
 	zipFile := path.Join(dir, "namespace1.zip")
 	cfg := &ConfigWrapper{
