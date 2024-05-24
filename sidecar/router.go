@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
+	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
 )
@@ -140,7 +141,7 @@ func (s *Service) uploadHandler(w http.ResponseWriter, r *http.Request) {
 type DownloadType string
 
 const (
-	BucketDownload DownloadType = "Bucket"
+	BucketDownload DownloadType = "Buckets"
 	URLDownload    DownloadType = "URL"
 )
 
@@ -164,6 +165,23 @@ func (s *Service) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	err := downloadFile(ctx, req)
 	if err != nil {
+		routerLog.Error(err.Error())
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Service) bundleHandler(w http.ResponseWriter, r *http.Request) {
+	var req bucket.BundleReq
+	if err := decodeBody(r, &req); err != nil {
+		err = fmt.Errorf("error occurred while parsing body: %w", err)
+		routerLog.Error(err.Error())
+		httpError(w, http.StatusBadRequest)
+		return
+	}
+
+	if err := bucket.DownloadBundle(r.Context(), req); err != nil {
 		routerLog.Error(err.Error())
 		httpError(w, http.StatusBadRequest)
 		return

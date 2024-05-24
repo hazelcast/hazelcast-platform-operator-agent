@@ -21,8 +21,8 @@ const urlFileLock = ".file_download_url"
 var log = logger.New().Named("file_download_url")
 
 type Cmd struct {
-	Destination string `envconfig:"FDU_DESTINATION"`
-	URLs        string `envconfig:"FDU_URLS"`
+	Destination string `envconfig:"FDU_DESTINATION" yaml:"destination"`
+	URLs        string `envconfig:"FDU_URLS" yaml:"urls"`
 }
 
 func (*Cmd) Name() string     { return "file-download-url" }
@@ -36,8 +36,6 @@ func (r *Cmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Info("starting file download url agent...")
-
 	// overwrite config with environment variables
 	if err := envconfig.Process("fdu", r); err != nil {
 		log.Error("an error occurred while processing config from env: " + err.Error())

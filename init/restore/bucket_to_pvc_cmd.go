@@ -21,11 +21,11 @@ import (
 var log = logger.New().Named("restore_from_bucket_to_pvc")
 
 type BucketToPVCCmd struct {
-	Bucket      string `envconfig:"RESTORE_BUCKET"`
-	Destination string `envconfig:"RESTORE_DESTINATION"`
-	Hostname    string `envconfig:"RESTORE_HOSTNAME"`
-	SecretName  string `envconfig:"RESTORE_SECRET_NAME"`
-	RestoreID   string `envconfig:"RESTORE_ID"`
+	Bucket      string `envconfig:"RESTORE_BUCKET" yaml:"bucket"`
+	Destination string `envconfig:"RESTORE_DESTINATION" yaml:"destination"`
+	Hostname    string `envconfig:"RESTORE_HOSTNAME" yaml:"hostname"`
+	SecretName  string `envconfig:"RESTORE_SECRET_NAME" yaml:"secretName"`
+	RestoreID   string `envconfig:"RESTORE_ID" yaml:"restoreID"`
 }
 
 func (*BucketToPVCCmd) Name() string     { return "restore_pvc" }
