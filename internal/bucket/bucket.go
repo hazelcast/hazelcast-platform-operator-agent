@@ -94,7 +94,7 @@ func (sr SecretReader) SecretData(ctx context.Context, sn string) (map[string][]
 	}
 
 	if len(secret.Data) == 0 {
-		return nil, fmt.Errorf("data is empty in the bucket authentication secret: %s", secret.Name)
+		return nil, fmt.Errorf("the data in the bucket authentication secret is empty: %s", secret.Name)
 	}
 
 	return secret.Data, nil
