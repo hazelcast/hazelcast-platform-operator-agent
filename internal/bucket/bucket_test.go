@@ -180,13 +180,11 @@ func TestSecretReader_SecretData(t *testing.T) {
 		name       string
 		data       map[string][]byte
 		secretName string
-		errMsg     string
 	}{
 		{
 			name:       "empty secret name",
 			data:       nil,
 			secretName: "",
-			errMsg:     "",
 		},
 		{
 			name: "secret with data",
@@ -196,8 +194,30 @@ func TestSecretReader_SecretData(t *testing.T) {
 				"secret-access-key": []byte("<secret-access-key>"),
 			},
 			secretName: "gke-bucket-secret",
-			errMsg:     "",
 		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := fake.NewSimpleClientset()
+			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			if test.secretName != "" && test.data != nil {
+				sr = fakeSecretReader(test.secretName, test.data)
+			}
+			data, err := sr.SecretData(context.Background(), test.secretName)
+			require.Nil(t, err)
+			require.Equal(t, test.data, data)
+		})
+	}
+}
+
+func TestSecretReader_SecretData_Error(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string][]byte
+		secretName string
+		errMsg     string
+	}{
 		{
 			name:       "nonexisting secret name",
 			data:       nil,
@@ -220,13 +240,8 @@ func TestSecretReader_SecretData(t *testing.T) {
 				sr = fakeSecretReader(test.secretName, test.data)
 			}
 			data, err := sr.SecretData(context.Background(), test.secretName)
-			if test.errMsg != "" {
-				require.EqualError(t, err, test.errMsg)
-				require.Nil(t, data)
-			} else {
-				require.Nil(t, err)
-				require.Equal(t, test.data, data)
-			}
+			require.EqualError(t, err, test.errMsg)
+			require.Nil(t, data)
 		})
 	}
 }
