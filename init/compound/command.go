@@ -65,6 +65,7 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 	})
 	if err := g.Wait(); err != nil {
 		log.Error("error during execution: " + err.Error())
+		return subcommands.ExitFailure
 	}
 	log.Info("Successfully executed compound command")
 	return subcommands.ExitSuccess
