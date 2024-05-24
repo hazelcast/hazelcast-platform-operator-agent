@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hazelcast/platform-operator-agent/internal/k8sutil"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
 	"gocloud.dev/gcp"
 	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 // Blob storage types
@@ -65,27 +65,30 @@ func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]b
 	}
 }
 
-func SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
+type SecretReader struct {
+	clientcorev1.SecretInterface
+}
+
+func NewSecretReader() (SecretReader, error) {
+	c, err := k8sutil.Client()
+	if err != nil {
+		return SecretReader{}, err
+	}
+
+	ns, err := k8sutil.Namespace()
+	if err != nil {
+		return SecretReader{}, err
+	}
+
+	return SecretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
+}
+
+func (sr SecretReader) SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	if sn == "" {
 		return nil, nil
 	}
 
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	namespace, err := namespace()
-	if err != nil {
-		return nil, err
-	}
-
-	secret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, sn, metav1.GetOptions{})
+	secret, err := sr.Get(ctx, sn, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -95,19 +98,6 @@ func SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	}
 
 	return secret.Data, nil
-}
-
-func namespace() (string, error) {
-	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
-		return ns, nil
-	}
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
-			return ns, nil
-		}
-		return "", err
-	}
-	return "", nil
 }
 
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {

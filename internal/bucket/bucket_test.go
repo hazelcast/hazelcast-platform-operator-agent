@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
@@ -170,4 +173,72 @@ func TestDownloadFile(t *testing.T) {
 	copiedFiles, err := fileutil.DirFileList(dstPath)
 	require.Nil(t, err)
 	require.ElementsMatch(t, copiedFiles, []fileutil.File{{Name: "file2.jar"}})
+}
+
+func TestSecretReader_SecretData(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string][]byte
+		secretName string
+		errMsg     string
+	}{
+		{
+			name:       "empty secret name",
+			data:       nil,
+			secretName: "",
+			errMsg:     "",
+		},
+		{
+			name: "secret with data",
+			data: map[string][]byte{
+				"region":            []byte("us-east-1"),
+				"access-key-id":     []byte("<access-key-id>"),
+				"secret-access-key": []byte("<secret-access-key>"),
+			},
+			secretName: "gke-bucket-secret",
+			errMsg:     "",
+		},
+		{
+			name:       "nonexisting secret name",
+			data:       nil,
+			secretName: "gke-bucket-secret",
+			errMsg:     "secrets \"gke-bucket-secret\" not found",
+		},
+		{
+			name:       "secret without data",
+			data:       map[string][]byte{},
+			secretName: "gke-bucket-secret",
+			errMsg:     "data is empty in the bucket authentication secret: gke-bucket-secret",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := fake.NewSimpleClientset()
+			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			if test.secretName != "" && test.data != nil {
+				sr = fakeSecretReader(test.secretName, test.data)
+			}
+			data, err := sr.SecretData(context.Background(), test.secretName)
+			if test.errMsg != "" {
+				require.EqualError(t, err, test.errMsg)
+				require.Nil(t, data)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, test.data, data)
+			}
+		})
+	}
+}
+
+func fakeSecretReader(name string, data map[string][]byte) SecretReader {
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+		Data: data,
+	}
+	c := fake.NewSimpleClientset(&secret)
+	return SecretReader{SecretInterface: c.CoreV1().Secrets("default")}
 }

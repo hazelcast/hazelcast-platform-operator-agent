@@ -59,10 +59,16 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 	}
 	log.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
 
-	log.Info("reading secret", zap.String("secret name", r.SecretName))
-	secretData, err := bucket.SecretData(ctx, r.SecretName)
+	// reading the bucket secrets
+	log.Info("reading bucket secret", zap.String("secret name", r.SecretName))
+	sr, err := bucket.NewSecretReader()
 	if err != nil {
-		log.Error("error fetching secret data: " + err.Error())
+		log.Error("error on creating bucket secret reader: " + err.Error())
+		return subcommands.ExitFailure
+	}
+	secretData, err := sr.SecretData(ctx, r.SecretName)
+	if err != nil {
+		log.Error("error fetching bucket secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
