@@ -1,9 +1,21 @@
-package k8sutil
+package k8s
 
 import (
 	"os"
 	"strings"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
+
+func Client() (*kubernetes.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return kubernetes.NewForConfig(config)
+}
 
 func Namespace() (string, error) {
 	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {

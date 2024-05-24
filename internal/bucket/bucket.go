@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hazelcast/platform-operator-agent/internal/k8sutil"
+	"github.com/hazelcast/platform-operator-agent/internal/k8s"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
 	"gocloud.dev/gcp"
@@ -72,18 +72,18 @@ type SecretReader struct {
 	clientcorev1.SecretInterface
 }
 
-func NewSecretReader() (SecretReader, error) {
-	c, err := k8sutil.Client()
+func NewSecretReader() (*SecretReader, error) {
+	c, err := k8s.Client()
 	if err != nil {
-		return SecretReader{}, err
+		return nil, err
 	}
 
-	ns, err := k8sutil.Namespace()
+	ns, err := k8s.Namespace()
 	if err != nil {
-		return SecretReader{}, err
+		return nil, err
 	}
 
-	return SecretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
+	return &SecretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
 }
 
 func (sr SecretReader) SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
