@@ -208,7 +208,7 @@ func TestSecretReader_SecretData(t *testing.T) {
 			name:       "secret without data",
 			data:       map[string][]byte{},
 			secretName: "gke-bucket-secret",
-			errMsg:     "data is empty in the bucket authentication secret: gke-bucket-secret",
+			errMsg:     "the data in the bucket authentication secret is empty: gke-bucket-secret",
 		},
 	}
 
