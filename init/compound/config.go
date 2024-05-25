@@ -16,8 +16,8 @@ type Config struct {
 }
 
 type Download struct {
-	Buckets []downloadbucket.Cmd `yaml:"bucket,omitempty"`
-	URLs    []downloadurl.Cmd    `yaml:"url,omitempty"`
+	Buckets []downloadbucket.Cmd `yaml:"buckets,omitempty"`
+	URLs    []downloadurl.Cmd    `yaml:"urls,omitempty"`
 	Bundle  *Bundle              `yaml:"bundle,omitempty"`
 }
 
