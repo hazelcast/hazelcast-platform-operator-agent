@@ -9,7 +9,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/sync/errgroup"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	"gopkg.in/yaml.v3"
 
 	"github.com/hazelcast/platform-operator-agent/internal/bucket"
 	"github.com/hazelcast/platform-operator-agent/internal/logger"
@@ -65,6 +65,7 @@ func (c *Cmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{})
 	})
 	if err := g.Wait(); err != nil {
 		log.Error("error during execution: " + err.Error())
+		return subcommands.ExitFailure
 	}
 	log.Info("Successfully executed compound command")
 	return subcommands.ExitSuccess
