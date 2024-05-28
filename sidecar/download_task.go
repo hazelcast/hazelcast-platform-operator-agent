@@ -17,9 +17,13 @@ func downloadFile(ctx context.Context, req DownloadFileReq) error {
 }
 
 func downloadFromBucket(ctx context.Context, req DownloadFileReq) error {
-	data, err := bucket.SecretData(ctx, req.SecretName)
+	sr, err := bucket.NewSecretReader()
 	if err != nil {
-		return fmt.Errorf("error fetching secret data: %w", err)
+		return fmt.Errorf("error fetching bucket secret reader: %w", err)
+	}
+	data, err := sr.SecretData(ctx, req.SecretName)
+	if err != nil {
+		return fmt.Errorf("error fetching bucket secret data: %w", err)
 	}
 	bucketURI, err := uri.NormalizeURI(req.URL)
 	if err != nil {
