@@ -40,9 +40,15 @@ func (t *task) process(ID uuid.UUID) {
 
 	backupLog.Info("bucket URI successfully normalized", zap.String("bucket URI", bucketURI))
 
-	secretData, err := bucket.SecretData(t.ctx, t.req.SecretName)
+	sr, err := bucket.NewSecretReader()
 	if err != nil {
-		backupLog.Error("error occurred while fetching secret: "+err.Error(), zap.Uint32("task ID", ID.ID()))
+		backupLog.Error("error occurred while creating bucket secret reader: "+err.Error(), zap.Uint32("task ID", ID.ID()))
+		t.err = err
+		return
+	}
+	secretData, err := sr.SecretData(t.ctx, t.req.SecretName)
+	if err != nil {
+		backupLog.Error("error occurred while fetching bucket secret: "+err.Error(), zap.Uint32("task ID", ID.ID()))
 		t.err = err
 		return
 	}
@@ -82,7 +88,11 @@ func (t *task) process(ID uuid.UUID) {
 }
 
 func (t *task) cleanup(ctx context.Context) error {
-	secretData, err := bucket.SecretData(ctx, t.req.SecretName)
+	sr, err := bucket.NewSecretReader()
+	if err != nil {
+		return err
+	}
+	secretData, err := sr.SecretData(ctx, t.req.SecretName)
 	if err != nil {
 		return err
 	}
