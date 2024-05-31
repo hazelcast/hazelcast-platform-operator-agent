@@ -274,40 +274,36 @@ func TestOpenAWS(t *testing.T) {
 
 func TestOpenAWS_MissingSecretKey(t *testing.T) {
 	tests := []struct {
-		name   string
-		secret map[string][]byte
-		errMsg string
+		secret     map[string][]byte
+		missingKey string
 	}{
 		{
-			name: "without AccessKeyId",
 			secret: map[string][]byte{
 				S3SecretAccessKey: []byte("secret-access-key"),
 				S3Region:          []byte("us-east-1"),
 			},
-			errMsg: fmt.Sprintf("invalid secret: missing key: %v", S3AccessKeyID),
+			missingKey: S3AccessKeyID,
 		},
 		{
-			name: "without SecretAccessKey",
 			secret: map[string][]byte{
 				S3AccessKeyID: []byte("access-key-id"),
 				S3Region:      []byte("us-east-1"),
 			},
-			errMsg: fmt.Sprintf("invalid secret: missing key: %v", S3SecretAccessKey),
+			missingKey: S3SecretAccessKey,
 		},
 		{
-			name: "without Region",
 			secret: map[string][]byte{
 				S3AccessKeyID:     []byte("access-key-id"),
 				S3SecretAccessKey: []byte("secret-access-key"),
 			},
-			errMsg: fmt.Sprintf("invalid secret: missing key: %v", S3Region),
+			missingKey: S3Region,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("without %s", test.missingKey), func(t *testing.T) {
 			_, err := openAWS(context.Background(), "s3://sample", test.secret)
-			require.EqualError(t, err, test.errMsg)
+			require.EqualError(t, err, fmt.Sprintf("invalid secret: missing key: %v", test.missingKey))
 		})
 	}
 }
