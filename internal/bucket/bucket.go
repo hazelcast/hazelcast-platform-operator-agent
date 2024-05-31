@@ -23,9 +23,6 @@ import (
 
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/hazelcast/platform-operator-agent/internal/k8s"
-	"github.com/hazelcast/platform-operator-agent/internal/uri"
-
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
