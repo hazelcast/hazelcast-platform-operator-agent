@@ -315,3 +315,69 @@ func TestOpenAWS_SessionWithNilSecret(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, bucket)
 }
+
+func TestOpenGCP(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	secret := map[string][]byte{
+		GCPCredentialFile: []byte("{\"type\": \"service_account\"}"),
+	}
+	bucket, err := openGCP(ctx, bucketURL, secret)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenGCP_MissingSecretKey(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	secret := map[string][]byte{}
+	_, err := openGCP(ctx, bucketURL, secret)
+	require.EqualError(t, err, fmt.Sprintf("invalid secret for GCP : missing credential: %v", GCPCredentialFile))
+}
+
+func TestOpenGCP_SessionWithNilSecret(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	bucket, err := openAWS(ctx, bucketURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenAzure(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "azblob://sample"
+	secret := map[string][]byte{
+		AzureStorageAccount: []byte("storage-account"),
+		AzureStorageKey:     []byte("c3RvcmFnZS1rZXkK"),
+	}
+	bucket, err := openAZURE(ctx, bucketURL, secret)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenAzure_MissingSecretKey(t *testing.T) {
+	tests := []struct {
+		secret     map[string][]byte
+		missingKey string
+	}{
+		{
+			secret: map[string][]byte{
+				AzureStorageKey: []byte("c3RvcmFnZS1rZXkK"),
+			},
+			missingKey: AzureStorageAccount,
+		},
+		{
+			secret: map[string][]byte{
+				AzureStorageAccount: []byte("storage-account"),
+			},
+			missingKey: AzureStorageKey,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("without %s", test.missingKey), func(t *testing.T) {
+			_, err := openAZURE(context.Background(), "s3://sample", test.secret)
+			require.EqualError(t, err, fmt.Sprintf("invalid secret: missing key: %v", test.missingKey))
+		})
+	}
+}
