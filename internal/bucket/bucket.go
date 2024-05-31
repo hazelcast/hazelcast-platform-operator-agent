@@ -19,9 +19,11 @@ import (
 	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-  "github.com/hazelcast/platform-operator-agent/internal/k8s"
-	"github.com/hazelcast/platform-operator-agent/internal/uri"
+	"github.com/hazelcast/platform-operator-agent/internal/k8s"
+
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
 // Blob storage types
@@ -264,11 +266,7 @@ type BundleReq struct {
 }
 
 func DownloadBundle(ctx context.Context, req BundleReq) error {
-	sr, err := NewSecretReader()
-	if err != nil {
-		return err
-	}
-	secretData, err := sr.SecretData(ctx, req.SecretName)
+	secretData, err := readSecretData(ctx, req.SecretName)
 	if err != nil {
 		return err
 	}
@@ -308,6 +306,17 @@ func DownloadBundle(ctx context.Context, req BundleReq) error {
 		}
 	}
 	return w.Close()
+}
+
+func readSecretData(ctx context.Context, secretName string) (map[string][]byte, error) {
+	if secretName == "" {
+		return nil, nil
+	}
+	sr, err := NewSecretReader()
+	if err != nil {
+		return nil, err
+	}
+	return sr.SecretData(ctx, secretName)
 }
 
 func addToZip(ctx context.Context, b *blob.Bucket, obj *blob.ListObject, w *zip.Writer) error {
