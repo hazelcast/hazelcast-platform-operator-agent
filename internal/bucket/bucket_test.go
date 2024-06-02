@@ -2,6 +2,7 @@ package bucket
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -9,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "gocloud.dev/blob/fileblob"
 	"gocloud.dev/blob/memblob"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/hazelcast/platform-operator-agent/internal/fileutil"
 )
@@ -170,4 +174,144 @@ func TestDownloadFile(t *testing.T) {
 	copiedFiles, err := fileutil.DirFileList(dstPath)
 	require.Nil(t, err)
 	require.ElementsMatch(t, copiedFiles, []fileutil.File{{Name: "file2.jar"}})
+}
+
+func TestSecretReader_SecretData(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string][]byte
+		secretName string
+	}{
+		{
+			name:       "empty secret name",
+			data:       nil,
+			secretName: "",
+		},
+		{
+			name: "secret with data",
+			data: map[string][]byte{
+				"region":            []byte("us-east-1"),
+				"access-key-id":     []byte("<access-key-id>"),
+				"secret-access-key": []byte("<secret-access-key>"),
+			},
+			secretName: "gke-bucket-secret",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := fake.NewSimpleClientset()
+			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			if test.secretName != "" && test.data != nil {
+				sr = fakeSecretReader(test.secretName, test.data)
+			}
+			data, err := sr.SecretData(context.Background(), test.secretName)
+			require.Nil(t, err)
+			require.Equal(t, test.data, data)
+		})
+	}
+}
+
+func TestSecretReader_SecretData_Error(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string][]byte
+		secretName string
+		errMsg     string
+	}{
+		{
+			name:       "nonexisting secret name",
+			data:       nil,
+			secretName: "gke-bucket-secret",
+			errMsg:     "secrets \"gke-bucket-secret\" not found",
+		},
+		{
+			name:       "secret without data",
+			data:       map[string][]byte{},
+			secretName: "gke-bucket-secret",
+			errMsg:     "the data in the bucket authentication secret is empty: gke-bucket-secret",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := fake.NewSimpleClientset()
+			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			if test.secretName != "" && test.data != nil {
+				sr = fakeSecretReader(test.secretName, test.data)
+			}
+			data, err := sr.SecretData(context.Background(), test.secretName)
+			require.EqualError(t, err, test.errMsg)
+			require.Nil(t, data)
+		})
+	}
+}
+
+func fakeSecretReader(name string, data map[string][]byte) SecretReader {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+		Data: data,
+	}
+	c := fake.NewSimpleClientset(secret)
+	return SecretReader{SecretInterface: c.CoreV1().Secrets("default")}
+}
+
+func TestOpenAWS(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "s3://sample"
+	secret := map[string][]byte{
+		S3AccessKeyID:     []byte("access-key-id"),
+		S3SecretAccessKey: []byte("secret-access-key"),
+		S3Region:          []byte("us-east-1"),
+	}
+	bucket, err := openAWS(ctx, bucketURL, secret)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenAWS_MissingSecretKey(t *testing.T) {
+	tests := []struct {
+		secret     map[string][]byte
+		missingKey string
+	}{
+		{
+			secret: map[string][]byte{
+				S3SecretAccessKey: []byte("secret-access-key"),
+				S3Region:          []byte("us-east-1"),
+			},
+			missingKey: S3AccessKeyID,
+		},
+		{
+			secret: map[string][]byte{
+				S3AccessKeyID: []byte("access-key-id"),
+				S3Region:      []byte("us-east-1"),
+			},
+			missingKey: S3SecretAccessKey,
+		},
+		{
+			secret: map[string][]byte{
+				S3AccessKeyID:     []byte("access-key-id"),
+				S3SecretAccessKey: []byte("secret-access-key"),
+			},
+			missingKey: S3Region,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("without %s", test.missingKey), func(t *testing.T) {
+			_, err := openAWS(context.Background(), "s3://sample", test.secret)
+			require.EqualError(t, err, fmt.Sprintf("invalid secret: missing key: %v", test.missingKey))
+		})
+	}
+}
+
+func TestOpenAWS_SessionWithNilSecret(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "s3://sample"
+	bucket, err := openAWS(ctx, bucketURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
 }

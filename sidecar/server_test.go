@@ -480,7 +480,7 @@ func TestUploadBackup(t *testing.T) {
 
 			// copy the files under backupDir for checking later
 			backupDirCopy := path.Join(tmpdir, "backupDirCopy")
-			cmd := exec.Command("cp", "--recursive", backupDir, backupDirCopy)
+			cmd := exec.Command("cp", "-R", backupDir, backupDirCopy)
 			err = cmd.Run()
 			require.Nil(t, err)
 

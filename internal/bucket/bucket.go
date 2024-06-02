@@ -11,13 +11,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/session"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
+	"gocloud.dev/blob/s3blob"
 	"gocloud.dev/gcp"
 	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+
+	"github.com/hazelcast/platform-operator-agent/internal/k8s"
+
+	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
@@ -68,60 +72,76 @@ func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]b
 	}
 }
 
-func SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
+type SecretReader struct {
+	clientcorev1.SecretInterface
+}
+
+func NewSecretReader() (*SecretReader, error) {
+	c, err := k8s.Client()
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := k8s.Namespace()
+	if err != nil {
+		return nil, err
+	}
+
+	return &SecretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
+}
+
+func (sr SecretReader) SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	if sn == "" {
 		return nil, nil
 	}
 
-	config, err := rest.InClusterConfig()
+	secret, err := sr.Get(ctx, sn, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
+	if len(secret.Data) == 0 {
+		return nil, fmt.Errorf("the data in the bucket authentication secret is empty: %s", secret.Name)
 	}
 
-	namespace, err := namespace()
-	if err != nil {
-		return nil, err
-	}
-
-	secret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, sn, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
 	return secret.Data, nil
 }
 
-func namespace() (string, error) {
-	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
-		return ns, nil
-	}
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
-			return ns, nil
-		}
-		return "", err
-	}
-	return "", nil
-}
-
 func openAWS(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
-	if secret != nil {
-		if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
-			return nil, err
-		}
-		if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
-			return nil, err
-		}
-		if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
-			return nil, err
-		}
+	if secret == nil {
+		return openAWSWithSession(ctx, bucketURL)
+	}
+
+	if err := setCredentialEnv(secret, S3AccessKeyID, S3EnvAccessKeyID); err != nil {
+		return nil, err
+	}
+	if err := setCredentialEnv(secret, S3Region, S3EnvRegion); err != nil {
+		return nil, err
+	}
+	if err := setCredentialEnv(secret, S3SecretAccessKey, S3EnvSecretAccessKey); err != nil {
+		return nil, err
 	}
 
 	return blob.OpenBucket(ctx, bucketURL)
+}
+
+func openAWSWithSession(ctx context.Context, bucketURL string) (*blob.Bucket, error) {
+	s, err := session.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(bucketURL)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket, err := s3blob.OpenBucket(ctx, s, u.Host, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return blob.PrefixedBucket(bucket, u.Query().Get("prefix")), nil
 }
 
 func openGCP(ctx context.Context, bucketURL string, secret map[string][]byte) (*blob.Bucket, error) {
@@ -246,7 +266,7 @@ type BundleReq struct {
 }
 
 func DownloadBundle(ctx context.Context, req BundleReq) error {
-	secretData, err := SecretData(ctx, req.SecretName)
+	secretData, err := readSecretData(ctx, req.SecretName)
 	if err != nil {
 		return err
 	}
@@ -286,6 +306,17 @@ func DownloadBundle(ctx context.Context, req BundleReq) error {
 		}
 	}
 	return w.Close()
+}
+
+func readSecretData(ctx context.Context, secretName string) (map[string][]byte, error) {
+	if secretName == "" {
+		return nil, nil
+	}
+	sr, err := NewSecretReader()
+	if err != nil {
+		return nil, err
+	}
+	return sr.SecretData(ctx, secretName)
 }
 
 func addToZip(ctx context.Context, b *blob.Bucket, obj *blob.ListObject, w *zip.Writer) error {

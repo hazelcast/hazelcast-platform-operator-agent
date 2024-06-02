@@ -18,7 +18,7 @@ import (
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
-var bucketToPVCLog = logger.New().Named("restore_from_bucket_to_pvc")
+var log = logger.New().Named("restore_from_bucket_to_pvc")
 
 type BucketToPVCCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET" yaml:"bucket"`
@@ -38,17 +38,17 @@ func (r *BucketToPVCCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	bucketToPVCLog.Info("starting restore agent...")
+	log.Info("starting restore agent...")
 
 	// overwrite config with environment variables
 	if err := envconfig.Process("restore", r); err != nil {
-		bucketToPVCLog.Error("an error occurred while processing config from env: " + err.Error())
+		log.Error("an error occurred while processing config from env: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	hostname := os.Getenv("HOSTNAME")
 	if !hostnameRE.MatchString(hostname) {
-		bucketToPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
+		log.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
@@ -56,47 +56,53 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	bucketToPVCLog.Info("agent id parse successfully", zap.Int("agent id", id))
+	log.Info("agent id parse successfully", zap.Int("agent id", id))
 
 	bucketURI, err := uri.NormalizeURI(r.Bucket)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
-	bucketToPVCLog.Info("bucket uri normalized successfully", zap.String("bucket URI", bucketURI))
+	log.Info("bucket uri normalized successfully", zap.String("bucket URI", bucketURI))
 
 	lock := filepath.Join(r.Destination, lockFileName(r.RestoreID, id))
 
 	if _, err = os.Stat(lock); err == nil || os.IsExist(err) {
 		// If restore lock exists exit
-		bucketToPVCLog.Info("restore lock exists, exiting")
+		log.Info("restore lock exists, exiting")
 		return subcommands.ExitSuccess
 	}
 
-	bucketToPVCLog.Info("reading secret", zap.String("secret name", r.SecretName))
-	secretData, err := bucket.SecretData(ctx, r.SecretName)
+	// reading the bucket secrets
+	log.Info("reading bucket secret", zap.String("secret name", r.SecretName))
+	sr, err := bucket.NewSecretReader()
 	if err != nil {
-		bucketToPVCLog.Error("error fetching secret data: " + err.Error())
+		log.Error("error on creating bucket secret reader: " + err.Error())
+		return subcommands.ExitFailure
+	}
+	secretData, err := sr.SecretData(ctx, r.SecretName)
+	if err != nil {
+		log.Error("error fetching bucket secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	// run download process
-	bucketToPVCLog.Info("Starting download:", zap.Int(r.Destination, id))
+	log.Info("Starting download:", zap.Int(r.Destination, id))
 	if err = downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
-		bucketToPVCLog.Error("download error: " + err.Error())
+		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = cleanupLocks(r.Destination, id); err != nil {
-		bucketToPVCLog.Error("error cleaning up locks: " + err.Error())
+		log.Error("error cleaning up locks: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
 	if err = os.WriteFile(lock, []byte{}, 0600); err != nil {
-		bucketToPVCLog.Error("lock file creation error: " + err.Error())
+		log.Error("lock file creation error: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
-	bucketToPVCLog.Info("restore successful")
+	log.Info("restore successful")
 	return subcommands.ExitSuccess
 }
 
@@ -138,7 +144,7 @@ func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secre
 		}
 	}
 
-	bucketToPVCLog.Info("restoring ", zap.String("key", keys[id]))
+	log.Info("restoring ", zap.String("key", keys[id]))
 	if err = saveFromArchive(ctx, b, keys[id], dst); err != nil {
 		return err
 	}
