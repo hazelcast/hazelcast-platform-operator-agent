@@ -1,6 +1,7 @@
 package compound
 
 import (
+	"archive/zip"
 	"context"
 	"flag"
 	"os"
@@ -46,6 +47,8 @@ func Test_Execute_BundleCommand(t *testing.T) {
 	cmd := Cmd{ConfigFileLocation: conigF.Name()}
 	exStatus := cmd.Execute(context.TODO(), &flag.FlagSet{})
 	require.Equal(t, subcommands.ExitSuccess, exStatus)
-	_, err = os.Stat(zipFile)
+	zf, err := zip.OpenReader(zipFile)
 	require.Nil(t, err)
+	defer zf.Close()
+	require.Equal(t, 1, len(zf.File))
 }

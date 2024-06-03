@@ -10,6 +10,9 @@ func NormalizeURI(commonURI string) (uri string, err error) {
 	if err != nil {
 		return
 	}
+	if u.Scheme == "file" {
+		return commonURI, nil
+	}
 
 	formated := url.URL{
 		Scheme:   u.Scheme,
