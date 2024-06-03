@@ -113,7 +113,7 @@ func TestDownloadFromBucketToPVC(t *testing.T) {
 
 			// test
 
-			err = downloadFromBucketToPvc(ctx, "file://"+bucketPath, dstPath, tt.id, nil)
+			err = downloadFromBucketToPvc(ctx, "file://"+bucketPath, dstPath, tt.id, "")
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				return
