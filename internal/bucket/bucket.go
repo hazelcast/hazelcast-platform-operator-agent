@@ -266,7 +266,7 @@ type BundleReq struct {
 }
 
 func DownloadBundle(ctx context.Context, req BundleReq) error {
-	secretData, err := readSecretData(ctx, req.SecretName)
+	secretData, err := ReadSecretData(ctx, req.SecretName)
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func DownloadBundle(ctx context.Context, req BundleReq) error {
 	return w.Close()
 }
 
-func readSecretData(ctx context.Context, secretName string) (map[string][]byte, error) {
+func ReadSecretData(ctx context.Context, secretName string) (map[string][]byte, error) {
 	if secretName == "" {
 		return nil, nil
 	}

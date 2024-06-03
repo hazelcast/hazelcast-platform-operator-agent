@@ -61,14 +61,12 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 
 	// reading the bucket secrets
 	log.Info("reading bucket secret", zap.String("secret name", r.SecretName))
-	sr, err := bucket.NewSecretReader()
+	secretData, err := bucket.ReadSecretData(ctx, r.SecretName)
+	if err != nil {
+		return 0
+	}
 	if err != nil {
 		log.Error("error on creating bucket secret reader: " + err.Error())
-		return subcommands.ExitFailure
-	}
-	secretData, err := sr.SecretData(ctx, r.SecretName)
-	if err != nil {
-		log.Error("error fetching bucket secret data: " + err.Error())
 		return subcommands.ExitFailure
 	}
 
