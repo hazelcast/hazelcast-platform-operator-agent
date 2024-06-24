@@ -37,25 +37,9 @@ func (t *task) process(ID uuid.UUID) {
 		t.err = err
 		return
 	}
-
 	backupLog.Info("bucket URI successfully normalized", zap.String("bucket URI", bucketURI))
 
-	sr, err := bucket.NewSecretReader()
-	if err != nil {
-		backupLog.Error("error occurred while creating bucket secret reader: "+err.Error(), zap.Uint32("task ID", ID.ID()))
-		t.err = err
-		return
-	}
-	secretData, err := sr.SecretData(t.ctx, t.req.SecretName)
-	if err != nil {
-		backupLog.Error("error occurred while fetching bucket secret: "+err.Error(), zap.Uint32("task ID", ID.ID()))
-		t.err = err
-		return
-	}
-
-	backupLog.Info("task successfully read secret", zap.Uint32("task id", ID.ID()), zap.String("secret name", t.req.SecretName))
-
-	b, err := bucket.OpenBucket(t.ctx, bucketURI, secretData)
+	b, err := bucket.OpenBucket(t.ctx, bucketURI, t.req.SecretName)
 	if err != nil {
 		backupLog.Error("task could not open the bucket: "+err.Error(), zap.Uint32("task id", ID.ID()))
 		t.err = err
@@ -88,14 +72,5 @@ func (t *task) process(ID uuid.UUID) {
 }
 
 func (t *task) cleanup(ctx context.Context) error {
-	sr, err := bucket.NewSecretReader()
-	if err != nil {
-		return err
-	}
-	secretData, err := sr.SecretData(ctx, t.req.SecretName)
-	if err != nil {
-		return err
-	}
-
-	return bucket.RemoveFile(ctx, t.bucketURI, t.key, secretData)
+	return bucket.RemoveFile(ctx, t.bucketURI, t.key, t.req.SecretName)
 }

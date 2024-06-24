@@ -56,7 +56,21 @@ const (
 	AzureEnvStorageKey     = "AZURE_STORAGE_KEY"
 )
 
-func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]byte) (*blob.Bucket, error) {
+func OpenBucket(ctx context.Context, bucketURL string, secretName string) (*blob.Bucket, error) {
+	var secretData map[string][]byte
+
+	// if secretName is not empty, then read the bucket authentication secret from the given secret.
+	if secretName != "" {
+		sr, err := newSecretReader()
+		if err != nil {
+			return nil, err
+		}
+		secretData, err = sr.secretData(ctx, secretName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	switch {
 	case strings.HasPrefix(bucketURL, AWS):
 		return openAWS(ctx, bucketURL, secretData)
@@ -72,11 +86,11 @@ func OpenBucket(ctx context.Context, bucketURL string, secretData map[string][]b
 	}
 }
 
-type SecretReader struct {
+type secretReader struct {
 	clientcorev1.SecretInterface
 }
 
-func NewSecretReader() (*SecretReader, error) {
+func newSecretReader() (*secretReader, error) {
 	c, err := k8s.Client()
 	if err != nil {
 		return nil, err
@@ -87,14 +101,10 @@ func NewSecretReader() (*SecretReader, error) {
 		return nil, err
 	}
 
-	return &SecretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
+	return &secretReader{SecretInterface: c.CoreV1().Secrets(ns)}, nil
 }
 
-func (sr SecretReader) SecretData(ctx context.Context, sn string) (map[string][]byte, error) {
-	if sn == "" {
-		return nil, nil
-	}
-
+func (sr secretReader) secretData(ctx context.Context, sn string) (map[string][]byte, error) {
 	secret, err := sr.Get(ctx, sn, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -208,8 +218,8 @@ func setCredentialEnv(secret map[string][]byte, key, name string) error {
 	return os.Setenv(name, string(value))
 }
 
-func DownloadFile(ctx context.Context, src, dst, filename string, secretData map[string][]byte) error {
-	b, err := OpenBucket(ctx, src, secretData)
+func DownloadFile(ctx context.Context, src, dst, filename string, secretName string) error {
+	b, err := OpenBucket(ctx, src, secretName)
 	if err != nil {
 		return err
 	}
@@ -230,8 +240,8 @@ func DownloadFile(ctx context.Context, src, dst, filename string, secretData map
 	return b.Close()
 }
 
-func DownloadFiles(ctx context.Context, src, dst string, secretData map[string][]byte) error {
-	b, err := OpenBucket(ctx, src, secretData)
+func DownloadFiles(ctx context.Context, src, dst string, secretName string) error {
+	b, err := OpenBucket(ctx, src, secretName)
 	if err != nil {
 		return err
 	}
@@ -266,10 +276,6 @@ type BundleReq struct {
 }
 
 func DownloadBundle(ctx context.Context, req BundleReq) error {
-	secretData, err := readSecretData(ctx, req.SecretName)
-	if err != nil {
-		return err
-	}
 	bucketURI, err := uri.NormalizeURI(req.URL)
 	if err != nil {
 		return err
@@ -281,7 +287,7 @@ func DownloadBundle(ctx context.Context, req BundleReq) error {
 	}
 	defer f.Close()
 
-	b, err := OpenBucket(ctx, bucketURI, secretData)
+	b, err := OpenBucket(ctx, bucketURI, req.SecretName)
 	if err != nil {
 		return err
 	}
@@ -306,17 +312,6 @@ func DownloadBundle(ctx context.Context, req BundleReq) error {
 		}
 	}
 	return w.Close()
-}
-
-func readSecretData(ctx context.Context, secretName string) (map[string][]byte, error) {
-	if secretName == "" {
-		return nil, nil
-	}
-	sr, err := NewSecretReader()
-	if err != nil {
-		return nil, err
-	}
-	return sr.SecretData(ctx, secretName)
 }
 
 func addToZip(ctx context.Context, b *blob.Bucket, obj *blob.ListObject, w *zip.Writer) error {
@@ -363,8 +358,8 @@ func saveFile(ctx context.Context, bucket *blob.Bucket, key, path string) error 
 	return s.Close()
 }
 
-func RemoveFile(ctx context.Context, bucket, key string, secretData map[string][]byte) error {
-	b, err := OpenBucket(ctx, bucket, secretData)
+func RemoveFile(ctx context.Context, bucket, key string, secretName string) error {
+	b, err := OpenBucket(ctx, bucket, secretName)
 	if err != nil {
 		return err
 	}
