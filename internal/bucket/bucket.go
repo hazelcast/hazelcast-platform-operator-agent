@@ -13,16 +13,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/azureblob"
 	"gocloud.dev/blob/gcsblob"
 	"gocloud.dev/blob/s3blob"
 	"gocloud.dev/gcp"
 	"golang.org/x/oauth2/google"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/hazelcast/platform-operator-agent/internal/k8s"
-
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/hazelcast/platform-operator-agent/internal/k8s"
 	"github.com/hazelcast/platform-operator-agent/internal/uri"
 )
 
