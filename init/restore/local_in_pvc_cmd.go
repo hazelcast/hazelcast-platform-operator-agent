@@ -41,7 +41,6 @@ type LocalInPVCCmd struct {
 	BackupSourceBaseDir      string `envconfig:"RESTORE_LOCAL_BACKUP_SRC_BASE_DIR" yaml:"backupSourceBaseDir"`
 	BackupDestinationBaseDir string `envconfig:"RESTORE_LOCAL_BACKUP_DEST_BASE_DIR" yaml:"backupDestinationBaseDir"`
 	BackupDir                string `envconfig:"RESTORE_LOCAL_BACKUP_BACKUP_DIR" yaml:"backupDir"`
-	Hostname                 string `envconfig:"RESTORE_LOCAL_HOSTNAME" yaml:"hostname"`
 	RestoreID                string `envconfig:"RESTORE_LOCAL_ID" yaml:"restoreID"`
 }
 
@@ -50,9 +49,6 @@ func (*LocalInPVCCmd) Synopsis() string { return "run restore pvc local agent" }
 func (*LocalInPVCCmd) Usage() string    { return "" }
 
 func (r *LocalInPVCCmd) SetFlags(f *flag.FlagSet) {
-	// We ignore error because this is just a default value
-	hostname, _ := os.Hostname()
-	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.BackupSequenceFolderName, "src", "", "src backup folder path")
 	f.StringVar(&r.BackupSourceBaseDir, "dst", "/data/persistence/backup", "dst filesystem path")
 	f.StringVar(&r.BackupDir, "backup-dir", "hot-backup", "relative directory of hot backup")
@@ -68,12 +64,14 @@ func (r *LocalInPVCCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...interfa
 		return subcommands.ExitFailure
 	}
 
-	if !hostnameRE.MatchString(r.Hostname) {
+	hostname := os.Getenv("HOSTNAME")
+
+	if !hostnameRE.MatchString(hostname) {
 		localInPVCLog.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
-	id, err := parseID(r.Hostname)
+	id, err := parseID(hostname)
 	if err != nil {
 		localInPVCLog.Error("parse error: " + err.Error())
 		return subcommands.ExitFailure

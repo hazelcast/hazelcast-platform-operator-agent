@@ -23,7 +23,6 @@ var log = logger.New().Named("restore_from_bucket_to_pvc")
 type BucketToPVCCmd struct {
 	Bucket      string `envconfig:"RESTORE_BUCKET" yaml:"bucket"`
 	Destination string `envconfig:"RESTORE_DESTINATION" yaml:"destination"`
-	Hostname    string `envconfig:"RESTORE_HOSTNAME" yaml:"hostname"`
 	SecretName  string `envconfig:"RESTORE_SECRET_NAME" yaml:"secretName"`
 	RestoreID   string `envconfig:"RESTORE_ID" yaml:"restoreID"`
 }
@@ -33,9 +32,6 @@ func (*BucketToPVCCmd) Synopsis() string { return "run restore_pvc agent" }
 func (*BucketToPVCCmd) Usage() string    { return "" }
 
 func (r *BucketToPVCCmd) SetFlags(f *flag.FlagSet) {
-	// We ignore error because this is just a default value
-	hostname, _ := os.Hostname()
-	f.StringVar(&r.Hostname, "hostname", hostname, "dst filesystem path")
 	f.StringVar(&r.Bucket, "src", "", "src bucket path")
 	f.StringVar(&r.Destination, "dst", "/data/persistence/backup", "dst filesystem path")
 	f.StringVar(&r.SecretName, "secret-name", "", "secret name for the bucket credentials")
@@ -50,12 +46,13 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 		return subcommands.ExitFailure
 	}
 
-	if !hostnameRE.MatchString(r.Hostname) {
+	hostname := os.Getenv("HOSTNAME")
+	if !hostnameRE.MatchString(hostname) {
 		log.Error("invalid hostname, need to conform to statefulset naming scheme")
 		return subcommands.ExitFailure
 	}
 
-	id, err := parseID(r.Hostname)
+	id, err := parseID(hostname)
 	if err != nil {
 		return subcommands.ExitFailure
 	}
