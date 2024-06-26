@@ -72,22 +72,9 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 		return subcommands.ExitSuccess
 	}
 
-	// reading the bucket secrets
-	log.Info("reading bucket secret", zap.String("secret name", r.SecretName))
-	sr, err := bucket.NewSecretReader()
-	if err != nil {
-		log.Error("error on creating bucket secret reader: " + err.Error())
-		return subcommands.ExitFailure
-	}
-	secretData, err := sr.SecretData(ctx, r.SecretName)
-	if err != nil {
-		log.Error("error fetching bucket secret data: " + err.Error())
-		return subcommands.ExitFailure
-	}
-
 	// run download process
 	log.Info("Starting download:", zap.Int(r.Destination, id))
-	if err = downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, secretData); err != nil {
+	if err = downloadFromBucketToPvc(ctx, bucketURI, r.Destination, id, r.SecretName); err != nil {
 		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}
@@ -106,8 +93,8 @@ func (r *BucketToPVCCmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...inte
 	return subcommands.ExitSuccess
 }
 
-func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secretData map[string][]byte) error {
-	b, err := bucket.OpenBucket(ctx, src, secretData)
+func downloadFromBucketToPvc(ctx context.Context, src, dst string, id int, secretName string) error {
+	b, err := bucket.OpenBucket(ctx, src, secretName)
 	if err != nil {
 		return err
 	}

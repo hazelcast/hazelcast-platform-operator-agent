@@ -59,20 +59,9 @@ func (r *Cmd) Execute(ctx context.Context, _ *flag.FlagSet, _ ...interface{}) su
 	}
 	log.Info("bucket URI normalized successfully", zap.String("bucket URI", bucketURI))
 
-	// reading the bucket secrets
-	log.Info("reading bucket secret", zap.String("secret name", r.SecretName))
-	secretData, err := bucket.ReadSecretData(ctx, r.SecretName)
-	if err != nil {
-		return 0
-	}
-	if err != nil {
-		log.Error("error on creating bucket secret reader: " + err.Error())
-		return subcommands.ExitFailure
-	}
-
 	// run download process
 	log.Info("starting download", zap.String("destination", r.Destination))
-	if err = bucket.DownloadFiles(ctx, bucketURI, r.Destination, secretData); err != nil {
+	if err = bucket.DownloadFiles(ctx, bucketURI, r.Destination, r.SecretName); err != nil {
 		log.Error("download error: " + err.Error())
 		return subcommands.ExitFailure
 	}

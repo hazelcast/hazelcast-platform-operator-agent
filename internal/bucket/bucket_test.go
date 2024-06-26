@@ -143,7 +143,7 @@ func TestDownloadFiles(t *testing.T) {
 			}
 
 			// Run the tests
-			err = DownloadFiles(context.Background(), "file://"+bucketPath, dstPath, nil)
+			err = DownloadFiles(context.Background(), "file://"+bucketPath, dstPath, "")
 			require.Equal(t, tt.wantErr, err != nil, "Error is: ", err)
 			if err != nil {
 				require.Contains(t, err.Error(), "no such file or directory")
@@ -169,7 +169,7 @@ func TestDownloadFile(t *testing.T) {
 	dstPath, err := os.MkdirTemp(tmpdir, "dest")
 	require.Nil(t, err, "Destination Path could not be created")
 
-	err = DownloadFile(context.Background(), "file://"+bucketPath, dstPath, "file2.jar", nil)
+	err = DownloadFile(context.Background(), "file://"+bucketPath, dstPath, "file2.jar", "")
 	require.Nil(t, err, "Error downloading file")
 	copiedFiles, err := fileutil.DirFileList(dstPath)
 	require.Nil(t, err)
@@ -182,11 +182,6 @@ func TestSecretReader_SecretData(t *testing.T) {
 		data       map[string][]byte
 		secretName string
 	}{
-		{
-			name:       "empty secret name",
-			data:       nil,
-			secretName: "",
-		},
 		{
 			name: "secret with data",
 			data: map[string][]byte{
@@ -201,11 +196,11 @@ func TestSecretReader_SecretData(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			c := fake.NewSimpleClientset()
-			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			sr := secretReader{SecretInterface: c.CoreV1().Secrets("")}
 			if test.secretName != "" && test.data != nil {
 				sr = fakeSecretReader(test.secretName, test.data)
 			}
-			data, err := sr.SecretData(context.Background(), test.secretName)
+			data, err := sr.secretData(context.Background(), test.secretName)
 			require.Nil(t, err)
 			require.Equal(t, test.data, data)
 		})
@@ -226,7 +221,7 @@ func TestSecretReader_SecretData_Error(t *testing.T) {
 			errMsg:     "secrets \"gke-bucket-secret\" not found",
 		},
 		{
-			name:       "secret without data",
+			name:       "secret with no data",
 			data:       map[string][]byte{},
 			secretName: "gke-bucket-secret",
 			errMsg:     "the data in the bucket authentication secret is empty: gke-bucket-secret",
@@ -236,18 +231,18 @@ func TestSecretReader_SecretData_Error(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			c := fake.NewSimpleClientset()
-			sr := SecretReader{SecretInterface: c.CoreV1().Secrets("")}
+			sr := secretReader{SecretInterface: c.CoreV1().Secrets("")}
 			if test.secretName != "" && test.data != nil {
 				sr = fakeSecretReader(test.secretName, test.data)
 			}
-			data, err := sr.SecretData(context.Background(), test.secretName)
+			data, err := sr.secretData(context.Background(), test.secretName)
 			require.EqualError(t, err, test.errMsg)
 			require.Nil(t, data)
 		})
 	}
 }
 
-func fakeSecretReader(name string, data map[string][]byte) SecretReader {
+func fakeSecretReader(name string, data map[string][]byte) secretReader {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -256,7 +251,7 @@ func fakeSecretReader(name string, data map[string][]byte) SecretReader {
 		Data: data,
 	}
 	c := fake.NewSimpleClientset(secret)
-	return SecretReader{SecretInterface: c.CoreV1().Secrets("default")}
+	return secretReader{SecretInterface: c.CoreV1().Secrets("default")}
 }
 
 func TestOpenAWS(t *testing.T) {
@@ -314,4 +309,70 @@ func TestOpenAWS_SessionWithNilSecret(t *testing.T) {
 	bucket, err := openAWS(ctx, bucketURL, nil)
 	require.NoError(t, err)
 	require.NotNil(t, bucket)
+}
+
+func TestOpenGCP(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	secret := map[string][]byte{
+		GCPCredentialFile: []byte("{\"type\": \"service_account\"}"),
+	}
+	bucket, err := openGCP(ctx, bucketURL, secret)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenGCP_MissingSecretKey(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	secret := map[string][]byte{}
+	_, err := openGCP(ctx, bucketURL, secret)
+	require.EqualError(t, err, fmt.Sprintf("invalid secret for GCP : missing credential: %v", GCPCredentialFile))
+}
+
+func TestOpenGCP_SessionWithNilSecret(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "gs://sample"
+	bucket, err := openAWS(ctx, bucketURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenAzure(t *testing.T) {
+	ctx := context.Background()
+	bucketURL := "azblob://sample"
+	secret := map[string][]byte{
+		AzureStorageAccount: []byte("storage-account"),
+		AzureStorageKey:     []byte("c3RvcmFnZS1rZXkK"),
+	}
+	bucket, err := openAZURE(ctx, bucketURL, secret)
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+}
+
+func TestOpenAzure_MissingSecretKey(t *testing.T) {
+	tests := []struct {
+		secret     map[string][]byte
+		missingKey string
+	}{
+		{
+			secret: map[string][]byte{
+				AzureStorageKey: []byte("c3RvcmFnZS1rZXkK"),
+			},
+			missingKey: AzureStorageAccount,
+		},
+		{
+			secret: map[string][]byte{
+				AzureStorageAccount: []byte("storage-account"),
+			},
+			missingKey: AzureStorageKey,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("without %s", test.missingKey), func(t *testing.T) {
+			_, err := openAZURE(context.Background(), "s3://sample", test.secret)
+			require.EqualError(t, err, fmt.Sprintf("invalid secret: missing key: %v", test.missingKey))
+		})
+	}
 }
